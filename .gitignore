@@ -1,0 +1,7 @@
+
+moritz-test-projekt.json
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/providers/registry.terraform.io/hashicorp/google/4.70.0/darwin_arm64/terraform-provider-google_v4.70.0_x5
+.terraform/providers/registry.terraform.io/hashicorp/google/4.74.0/darwin_arm64/terraform-provider-google_v4.74.0_x5
+.terraform.lock.hcl
