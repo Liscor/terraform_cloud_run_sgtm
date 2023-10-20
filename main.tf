@@ -2,13 +2,11 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "4.74.0"
     }
   }
 }
 
 provider "google" {
-  credentials = file(var.service_account_file)
   project = var.project_id
   region  = var.region
 }
@@ -25,22 +23,22 @@ resource "google_project_service" "monitoring_api" {
 }
 
 resource "google_service_account" "sgtm_service_account" {
-  account_id   = "serversidegtm"
+  account_id   = "server-side-gtm"
   display_name = "Serverside Google Tagmanager"
   depends_on = [ google_project_service.iam_api ]
 }
 
 resource "google_project_iam_member" "sgtm_add_roles" {
   for_each = toset([
-    "roles/run.invoker"
+    "roles/run.invoker",
+    "roles/cloudfunctions.invoker",
+    "roles/cloudfunctions.serviceAgent"
     ])
   project = var.project_id
   role = each.value
   member = "serviceAccount:${google_service_account.sgtm_service_account.email}"
   depends_on = [ google_service_account.sgtm_service_account ]
 }
-
-
 
 resource "google_cloud_run_v2_service" "gtm_debug" {
     name     = "gtm-debug"
@@ -93,11 +91,6 @@ resource "google_cloud_run_v2_service" "gtm_debug" {
     }
     depends_on = [ google_project_iam_member.sgtm_add_roles ]
 }
-
-/*locals {
-  my_service_url = google_cloud_run_v2_service.gtm_debug.uri
-  depends_on = [ google_cloud_run_v2_service.gtm_debug ]
-}*/
 
 resource "google_cloud_run_v2_service" "gtm_production" {
   name     = "gtm-production"
@@ -241,4 +234,87 @@ metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.lab
 
   notification_channels = [google_monitoring_notification_channel.sgtm_notification_channel.id]
   depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel, google_monitoring_uptime_check_config.sgtm_uptime_check ]
+}
+
+# We create Cloud Storage Bucket
+resource "google_storage_bucket" "bucket" {
+  name     = "cloud_function_sgtm_updater"
+  location = "EU"
+}
+
+# Upload the Cloud Function source file
+resource "google_storage_bucket_object" "source_files" {
+  name   = "cloud_function_src"
+  bucket = google_storage_bucket.bucket.name
+  source = "cloud_function_src.zip"
+  depends_on = [ google_storage_bucket.bucket ]
+}
+
+# Create Cloud Function for updating
+resource "google_cloudfunctions_function" "sgtm_updater" {
+  name        = "sgtm_cloud_run_updater"
+  description = "Cloud Function to update the Cloud Run sgtm if necessary."
+  service_account_email = google_service_account.sgtm_service_account.email
+  runtime     = "nodejs20"
+  region = var.region
+  available_memory_mb   = 256
+  source_archive_bucket = google_storage_bucket.bucket.name
+  source_archive_object = google_storage_bucket_object.source_files.name
+  trigger_http          = true
+  entry_point           = "check_cloud_run"
+  depends_on = [ google_storage_bucket_object.source_files ]
+}
+
+# Triggers the sgtm cloud updater for gtm-production once a day 
+resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
+  name             = "run_sgtm_updater_production"
+  description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
+  region           = var.region
+  schedule         = "0 8 * * *"
+  time_zone        = "Europe/Berlin"
+  attempt_deadline = "320s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = google_cloudfunctions_function.sgtm_updater.https_trigger_url
+    body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_production.name}\"}")
+    headers = {
+      "Content-Type" = "application/json"
+    }
+    oidc_token {
+      service_account_email = google_service_account.sgtm_service_account.email
+    }
+  }
+  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_production ]
+}
+
+# Triggers the sgtm cloud updater for gtm-debug once a day 
+resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
+  name             = "run_sgtm_updater_debug"
+  description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
+  region           = var.region
+  schedule         = "0 8 * * *"
+  time_zone        = "Europe/Berlin"
+  attempt_deadline = "320s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = google_cloudfunctions_function.sgtm_updater.https_trigger_url
+    body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_debug.name}\"}")
+    headers = {
+      "Content-Type" = "application/json"
+    }
+    oidc_token {
+      service_account_email = google_service_account.sgtm_service_account.email
+    }
+  }
+  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_debug ]
 }
