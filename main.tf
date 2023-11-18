@@ -16,6 +16,11 @@ resource "google_project_service" "iam_api" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "run_api" {
+  service = "run.googleapis.com"
+  disable_on_destroy = false
+}
+
 #Alerts
 resource "google_project_service" "monitoring_api" {
   service = "monitoring.googleapis.com"
@@ -89,7 +94,7 @@ resource "google_cloud_run_v2_service" "gtm_debug" {
         }
         }
     }
-    depends_on = [ google_project_iam_member.sgtm_add_roles ]
+    depends_on = [ google_project_iam_member.sgtm_add_roles, google_project_service.run_api ]
 }
 
 resource "google_cloud_run_v2_service" "gtm_production" {
