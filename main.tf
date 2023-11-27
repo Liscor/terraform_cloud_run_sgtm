@@ -11,13 +11,32 @@ provider "google" {
   region  = var.region
 }
 
+#IAM
 resource "google_project_service" "iam_api" {
   service = "iam.googleapis.com"
   disable_on_destroy = false
 }
 
+
+#Cloud Run
 resource "google_project_service" "run_api" {
   service = "run.googleapis.com"
+  disable_on_destroy = false
+}
+
+#Cloud Scheduler
+resource "google_project_service" "cloud_scheduler" {
+  service = "cloudscheduler.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "cloud_build" {
+  service = "cloudbuild.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "cloud_functions" {
+  service = "cloudfunctions.googleapis.com"
   disable_on_destroy = false
 }
 
