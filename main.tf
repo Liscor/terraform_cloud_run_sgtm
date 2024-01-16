@@ -262,7 +262,7 @@ metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.lab
 
 # We create Cloud Storage Bucket
 resource "google_storage_bucket" "bucket" {
-  name     = "cloud_function_sgtm_updater"
+  name     = var.google_storage_bucket_name
   location = "EU"
 }
 

@@ -20,3 +20,8 @@ variable "notification_user" {
     email = string
   })
 }
+
+variable "google_storage_bucket_name" {
+    description = "The unique name of the google storage bucket"
+    type = string
+}
