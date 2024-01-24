@@ -129,7 +129,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
     service_account = google_service_account.sgtm_service_account.email
     scaling {
         min_instance_count = 0
-        max_instance_count = 1
+        max_instance_count = var.max_instance_count
     }
     containers {
         image = "gcr.io/cloud-tagging-10302018/gtm-cloud-image:stable"
@@ -258,6 +258,33 @@ metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.lab
 
   notification_channels = [google_monitoring_notification_channel.sgtm_notification_channel.id]
   depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel, google_monitoring_uptime_check_config.sgtm_uptime_check ]
+}
+
+resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
+  display_name = "SGTM Update Notice"
+  combiner     = "OR"
+  documentation {
+    content = <<EOT
+    SGTM Update Notice
+    The Cloud Run SGTM in "${var.project_id}" was updated to the latest version.
+    Check Cloud Function logs for details.
+    
+    EOT
+    mime_type = "text/markdown"
+  }
+  conditions {
+    display_name = "SGTM"
+    condition_matched_log {
+      filter =  var.cloud_run_logs_filter
+    }
+  }
+  alert_strategy {
+    notification_rate_limit {
+      period = "300s"
+    }  
+  }
+  notification_channels = [google_monitoring_notification_channel.notification_channel.id]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel ]
 }
 
 # We create Cloud Storage Bucket
