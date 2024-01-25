@@ -295,9 +295,9 @@ resource "google_storage_bucket" "bucket" {
 
 # Upload the Cloud Function source file
 resource "google_storage_bucket_object" "source_files" {
-  name   = "cloud_function_src"
+  name   = "sgtm_cloud_run_updater"
   bucket = google_storage_bucket.bucket.name
-  source = "cloud_function_src.zip"
+  source = "sgtm_cloud_run_updater.zip"
   depends_on = [ google_storage_bucket.bucket ]
 }
 
@@ -313,7 +313,7 @@ resource "google_cloudfunctions_function" "sgtm_updater" {
   source_archive_object = google_storage_bucket_object.source_files.name
   trigger_http          = true
   entry_point           = "check_cloud_run"
-  depends_on = [ google_storage_bucket_object.source_files, google_project_service.cloud_functions ]
+  depends_on = [ google_storage_bucket_object.source_files ]
 }
 
 # Triggers the sgtm cloud updater for gtm-production once a day 
