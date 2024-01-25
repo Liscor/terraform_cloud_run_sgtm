@@ -128,7 +128,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
     
     service_account = google_service_account.sgtm_service_account.email
     scaling {
-        min_instance_count = 0
+        min_instance_count = var.min_instance_count
         max_instance_count = var.max_instance_count
     }
     containers {
@@ -275,7 +275,7 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
   conditions {
     display_name = "SGTM"
     condition_matched_log {
-      filter =  var.cloud_run_logs_filter
+      filter =  var.cloud_function_update_filter
     }
   }
   alert_strategy {
@@ -283,7 +283,7 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
       period = "300s"
     }  
   }
-  notification_channels = [google_monitoring_notification_channel.notification_channel.id]
+  notification_channels = [google_monitoring_notification_channel.sgtm_notification_channel.id]
   depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel ]
 }
 

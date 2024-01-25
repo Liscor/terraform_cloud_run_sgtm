@@ -13,12 +13,17 @@ variable "container_config" {
     type = string
 }
 
-variable "maximum_instance_count" {
+variable "min_instance_count" {
   description = "The maximum instances the Cloud Run service for production SGTM can create."
   type = number
 }
 
-variable "cloud_run_logs_filter" {
+variable "max_instance_count" {
+  description = "The maximum instances the Cloud Run service for production SGTM can create."
+  type = number
+}
+
+variable "cloud_function_update_filter" {
   description = "The Cloud Run logs which will be excluded from Cloud Logging"
   type = string 
 }
