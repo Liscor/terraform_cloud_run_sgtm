@@ -23,6 +23,11 @@ variable "max_instance_count" {
   type = number
 }
 
+variable "cpu_boost" {
+  description = "Activate CPU boost to allocate more CPUs for instances starting up."
+  type = bool
+}
+
 variable "cloud_function_update_filter" {
   description = "The Cloud Run logs which will be excluded from Cloud Logging"
   type = string 

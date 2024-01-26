@@ -73,44 +73,46 @@ resource "google_cloud_run_v2_service" "gtm_debug" {
         provider = "mohrstade"
     }
     template {
-    
+        annotations = {
+          "run.googleapis.com/startup-cpu-boost" = var.cpu_boost
+        }
         service_account = google_service_account.sgtm_service_account.email
         scaling {
             min_instance_count = 0
             max_instance_count = 1
         }
         containers {
-        image = "gcr.io/cloud-tagging-10302018/gtm-cloud-image:stable"
-        env {
-            name = "CONTAINER_CONFIG"
-            value = var.container_config
-        }
-        env {
-            name = "GOOGLE_CLOUD_PROJECT"
-            value = var.project_id
-        }
-        env {
-            name = "RUN_AS_PREVIEW_SERVER"
-            value = true
-        }
-        startup_probe {
-            http_get {
-                path = "/healthy"
-            }
-            initial_delay_seconds = 0
-            period_seconds = 10
-            failure_threshold = 3
-            timeout_seconds = 4
-        }
-        liveness_probe {
-            http_get {
-                path = "/healthy"
-            }
-            initial_delay_seconds = 240
-            period_seconds = 10
-            failure_threshold = 10
-            timeout_seconds = 4
-        }
+          image = "gcr.io/cloud-tagging-10302018/gtm-cloud-image:stable"
+          env {
+              name = "CONTAINER_CONFIG"
+              value = var.container_config
+          }
+          env {
+              name = "GOOGLE_CLOUD_PROJECT"
+              value = var.project_id
+          }
+          env {
+              name = "RUN_AS_PREVIEW_SERVER"
+              value = true
+          }
+          startup_probe {
+              http_get {
+                  path = "/healthy"
+              }
+              initial_delay_seconds = 0
+              period_seconds = 10
+              failure_threshold = 3
+              timeout_seconds = 4
+          }
+          liveness_probe {
+              http_get {
+                  path = "/healthy"
+              }
+              initial_delay_seconds = 240
+              period_seconds = 10
+              failure_threshold = 10
+              timeout_seconds = 4
+          }
         }
     }
     depends_on = [ google_project_iam_member.sgtm_add_roles, google_project_service.run_api ]
@@ -125,7 +127,9 @@ resource "google_cloud_run_v2_service" "gtm_production" {
         provider = "mohrstade"
     }  
   template {
-    
+    annotations = {
+      "run.googleapis.com/startup-cpu-boost" = var.cpu_boost
+    }
     service_account = google_service_account.sgtm_service_account.email
     scaling {
         min_instance_count = var.min_instance_count
@@ -145,7 +149,6 @@ resource "google_cloud_run_v2_service" "gtm_production" {
             name = "PREVIEW_SERVER_URL"
             value = google_cloud_run_v2_service.gtm_debug.uri
         }
-
        startup_probe {
         http_get {
           path = "/healthy"
