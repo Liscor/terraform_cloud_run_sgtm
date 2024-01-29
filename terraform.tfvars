@@ -7,12 +7,15 @@ region =  "europe-west3"
 # Container Config string from GTM Webinterface
 container_config = "aWQ9R1RNLUtOTEtHMlA4JmVudj0xJmF1dGg9T2IzamtQdl9mNkhRS2toR0F3OWtUQQ=="
 
-#Controls the maximum and minimum instances for Cloud Run service running the production SGTM
+# Controls the maximum and minimum instances for Cloud Run service running the production SGTM
 min_instance_count = 1
 max_instance_count = 5
 cpu_boost = true
 
+# Used to trigger a GCP alert based on SGTM updates performed by the 
 cloud_function_update_filter = "resource.type=\"cloud_function\" \nAND textPayload=~\"Versions are different: Deploying a new revision\""
+
+cloud_run_exclusion_filter = "resource.type=\"cloud_run_revision\" AND severity = \"INFO\" OR severity =\"DEFAULT\""
 
 # Used for error notfication alerting 
 notification_user = {

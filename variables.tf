@@ -29,8 +29,13 @@ variable "cpu_boost" {
 }
 
 variable "cloud_function_update_filter" {
-  description = "The Cloud Run logs which will be excluded from Cloud Logging"
+  description = "The Cloud function logs when the the Cloud Run SGTM instance gets updated."
   type = string 
+}
+
+variable "cloud_run_exclusion_filter" {
+  description = "The Cloud Run logs which will be exclude from the _default bucket."
+  type = string
 }
 
 variable "notification_user" {

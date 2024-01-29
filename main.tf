@@ -171,6 +171,14 @@ resource "google_cloud_run_v2_service" "gtm_production" {
   }
   depends_on = [ google_cloud_run_v2_service.gtm_debug ]
 }
+
+resource "google_logging_project_exclusion" "cloud-run-log-exclusion" {
+  name = "cloud-run-log-exclusion"
+  description = "Exclude Cloud Run logs which are not severe."
+  filter = var.cloud_run_exclusion_filter
+  depends_on = [ google_cloud_run_v2_service.gtm_production ]
+}
+
 resource "google_cloud_run_service_iam_member" "prod_run_all_users" {
   service  = google_cloud_run_v2_service.gtm_production.name
   location = google_cloud_run_v2_service.gtm_production.location
