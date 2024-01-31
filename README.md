@@ -1,11 +1,13 @@
-# Terraform Cloud Run Deployment - Serverside Google Tag Manager
-This Terraform script deploys the serverside Google Tag Manager on Cloud Run within the Google Cloud Platform.
+# Serverside Google Tag Manager - Terraform Cloud Run Deployment
+This Terraform script deploys the serverside Google Tag Manager on Cloud Run within the Google Cloud Platform including alerting functionality and uptime checks.
 ## Features
-- Startup- and Liveness Probe
-- Uptime Check with Notifications
-- Auto updates for serverside GTM Docker Images on Cloud Run via Cloud Function and Cloud Scheduler
+- Uptime Check with Notifications - You will be notified if there is an outage of your SGTM services
+- Docker Image Auto Updates - The SGTM Docker image will be updated automatically once per week (default)
+- Log Exculusion - Logs with the serverity default or notice will be excluded to reduce costs
 
 ## Getting Started
+### Quick Start
 1. Clone this repository and make sure you have installed [Terraform](https://developer.hashicorp.com/terraform/tutorials/gcp-get-started/install-cli).
-2. Change the variables inside terraform.tfvars.example to suit your needs and rename the file to terraform.tfvars.
-3. Run `terraform init` to initialize the repository and `terraform apply` the infrastructure will be built on GCP
+2. Authenticate with Application Default Credentials - Setup [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc#local-user-cred).
+3. Change the variables inside terraform.tfvars.example to suit your needs and rename the file to terraform.tfvars. Make sure you have created the SGTM Container already to retrieve the container config.
+4. Run `terraform init` to initialize the repository and `terraform apply` the infrastructure will be built on GCP

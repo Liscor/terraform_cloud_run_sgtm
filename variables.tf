@@ -13,6 +13,16 @@ variable "container_config" {
     type = string
 }
 
+variable "service_name_production" {
+    description = "The name of the SGTM production service in Cloud Run."
+    type = string
+}
+
+variable "service_name_preview" {
+    description = "The name of the SGTM preview service in Cloud Run."
+    type = string
+}
+
 variable "min_instance_count" {
   description = "The maximum instances the Cloud Run service for production SGTM can create."
   type = number
@@ -30,6 +40,11 @@ variable "cpu_boost" {
 
 variable "cloud_function_update_filter" {
   description = "The Cloud function logs when the the Cloud Run SGTM instance gets updated."
+  type = string 
+}
+
+variable "update_interval" {
+  description = "Update interval for the Cloud Function updating the SGTM Image in unix-cron job format - Default everyday at 8:00 am UTC"
   type = string 
 }
 

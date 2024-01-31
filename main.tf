@@ -64,8 +64,8 @@ resource "google_project_iam_member" "sgtm_add_roles" {
   depends_on = [ google_service_account.sgtm_service_account ]
 }
 
-resource "google_cloud_run_v2_service" "gtm_debug" {
-    name     = "gtm-debug"
+resource "google_cloud_run_v2_service" "gtm_preview" {
+    name     = var.service_name_preview
     location = var.region
     ingress = "INGRESS_TRAFFIC_ALL"
     labels = {
@@ -119,7 +119,7 @@ resource "google_cloud_run_v2_service" "gtm_debug" {
 }
 
 resource "google_cloud_run_v2_service" "gtm_production" {
-  name     = "gtm-production"
+  name     = var.service_name_production
   location = var.region
   ingress = "INGRESS_TRAFFIC_ALL"
   labels = {
@@ -147,7 +147,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
         }
         env {
             name = "PREVIEW_SERVER_URL"
-            value = google_cloud_run_v2_service.gtm_debug.uri
+            value = google_cloud_run_v2_service.gtm_preview.uri
         }
        startup_probe {
         http_get {
@@ -169,7 +169,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
       }
     }
   }
-  depends_on = [ google_cloud_run_v2_service.gtm_debug ]
+  depends_on = [ google_cloud_run_v2_service.gtm_preview ]
 }
 
 resource "google_logging_project_exclusion" "cloud-run-log-exclusion" {
@@ -188,11 +188,11 @@ resource "google_cloud_run_service_iam_member" "prod_run_all_users" {
 }
 
 resource "google_cloud_run_service_iam_member" "debug_run_all_users" {
-  service  = google_cloud_run_v2_service.gtm_debug.name
-  location = google_cloud_run_v2_service.gtm_debug.location
+  service  = google_cloud_run_v2_service.gtm_preview.name
+  location = google_cloud_run_v2_service.gtm_preview.location
   role     = "roles/run.invoker"
   member   = "allUsers"
-  depends_on = [ google_cloud_run_v2_service.gtm_debug ]
+  depends_on = [ google_cloud_run_v2_service.gtm_preview ]
 }
 
 resource "google_monitoring_notification_channel" "sgtm_notification_channel" {
@@ -332,7 +332,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
   name             = "run_sgtm_updater_production"
   description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
   region           = var.region
-  schedule         = "0 8 * * *"
+  schedule         = var.update_interval
   time_zone        = "Europe/Berlin"
   attempt_deadline = "320s"
 
@@ -359,7 +359,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
   name             = "run_sgtm_updater_debug"
   description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
   region           = var.region
-  schedule         = "0 8 * * *"
+  schedule         = var.update_interval
   time_zone        = "Europe/Berlin"
   attempt_deadline = "320s"
 
@@ -370,7 +370,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
   http_target {
     http_method = "POST"
     uri         = google_cloudfunctions_function.sgtm_updater.https_trigger_url
-    body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_debug.name}\"}")
+    body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_preview.name}\"}")
     headers = {
       "Content-Type" = "application/json"
     }
@@ -378,5 +378,5 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
       service_account_email = google_service_account.sgtm_service_account.email
     }
   }
-  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_debug ]
+  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_preview ]
 }
