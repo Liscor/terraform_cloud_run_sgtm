@@ -1,5 +1,5 @@
 # Serverside Google Tag Manager - Terraform Cloud Run Deployment
-This Terraform script deploys the serverside Google Tag Manager on Cloud Run within the Google Cloud Platform including alerting functionality and uptime checks.
+This Terraform script deploys the serverside Google Tag Manager on Cloud Run within the Google Cloud Platform with various extra features like automated updates and an alerting policy.
 ## Features
 - Uptime Check with Notifications - You will be notified if there is an outage of your SGTM services
 - Docker Image Auto Updates - The SGTM Docker image will be updated automatically once per week (default)

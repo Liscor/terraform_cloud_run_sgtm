@@ -298,7 +298,34 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
   depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel ]
 }
 
-# We create Cloud Storage Bucket
+# download cloud function files from github
+resource "null_resource" "index_js" {
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+  provisioner "local-exec" {
+    command = "curl -L https://raw.githubusercontent.com/liscor/sgtm_cloud_run_updater/main/index.js --output ${path.module}/cf_function/index.js"
+  }
+}
+
+resource "null_resource" "package_json" {
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+  provisioner "local-exec" {
+    command = "curl -L https://raw.githubusercontent.com/liscor/sgtm_cloud_run_updater/main/package.json --output ${path.module}/cf_function/package.json"
+  }
+}
+
+data "archive_file" "function_zip" {
+  type        = "zip"
+  output_path = "${path.module}/cf_function/function.zip"
+  source_dir  = "${path.module}/cf_function"
+  excludes    = ["${path.module}/cf_function/function.zip"]
+
+  depends_on = [null_resource.index_js,null_resource.package_json]
+}
+
 resource "google_storage_bucket" "bucket" {
   name     = var.google_storage_bucket_name
   location = "EU"
@@ -308,8 +335,8 @@ resource "google_storage_bucket" "bucket" {
 resource "google_storage_bucket_object" "source_files" {
   name   = "sgtm_cloud_run_updater"
   bucket = google_storage_bucket.bucket.name
-  source = "sgtm_cloud_run_updater.zip"
-  depends_on = [ google_storage_bucket.bucket ]
+  source = "cf_function/function.zip"
+  depends_on = [ google_storage_bucket.bucket, data.archive_file.function_zip ]
 }
 
 # Create Cloud Function for updating

@@ -8,8 +8,8 @@ region =  "europe-west3"
 container_config = "aWQ9R1RNLUtOTEtHMlA4JmVudj0xJmF1dGg9T2IzamtQdl9mNkhRS2toR0F3OWtUQQ=="
 
 # The names for the SGTM Cloud Run services
-service_name_preview = "sgtm_preview"
-service_name_production = "sgtm_production"
+service_name_preview = "sgtm-preview"
+service_name_production = "sgtm-production"
 
 # Controls the maximum and minimum instances for Cloud Run service running the production SGTM
 min_instance_count = 0
@@ -32,4 +32,4 @@ notification_user = {
 } 
 
 # Used to name the google storage bucket
-google_storage_bucket_name = "moritz-test-projekt-bucket"
+google_storage_bucket_name = "moritz-test-projekt-bucket2"
