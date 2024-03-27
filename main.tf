@@ -195,11 +195,12 @@ resource "google_cloud_run_service_iam_member" "debug_run_all_users" {
   depends_on = [ google_cloud_run_v2_service.gtm_preview ]
 }
 
-resource "google_monitoring_notification_channel" "sgtm_notification_channel" {
-  display_name = "${var.notification_user.name}"
+resource "google_monitoring_notification_channel" "sgtm_notification_channels" {
+  count = length(var.notification_users)
+  display_name = var.notification_users[count.index].name
   type         = "email"
   labels = {
-    email_address = var.notification_user.email
+    email_address = var.notification_users[count.index].email
   }
   force_delete = false
   depends_on = [ google_project_service.monitoring_api ]
@@ -267,8 +268,8 @@ metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.lab
   }    
   }
 
-  notification_channels = [google_monitoring_notification_channel.sgtm_notification_channel.id]
-  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel, google_monitoring_uptime_check_config.sgtm_uptime_check ]
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels, google_monitoring_uptime_check_config.sgtm_uptime_check ]
 }
 
 resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
@@ -294,8 +295,125 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
       period = "300s"
     }  
   }
-  notification_channels = [google_monitoring_notification_channel.sgtm_notification_channel.id]
-  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channel ]
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
+}
+
+resource "google_monitoring_alert_policy" "sgtm_cpu_utilization_alert_policy" {
+  display_name = "SGTM High CPU Utilization Alert"
+  combiner     = "OR"
+  conditions {
+    display_name = "SGTM CPU Utilization > 60% for Production"
+    condition_threshold {
+      filter = <<-EOT
+        metric.type="run.googleapis.com/container/cpu/utilizations" AND
+        resource.type="cloud_run_revision" AND
+        resource.label.service_name="${var.service_name_production}"
+      EOT
+      comparison = "COMPARISON_GT"
+      threshold_value = 0.6
+      duration = "300s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_PERCENTILE_99"
+      }
+    }
+  }
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
+}
+
+resource "google_monitoring_alert_policy" "sgtm_instance_count_alert_policy" {
+  display_name = "SGTM High Instance Count Alert"
+  combiner     = "OR"
+  conditions {
+    display_name = "SGTM Instance Count Exceeds 80% of Maximum"
+    condition_threshold {
+      filter = <<-EOT
+        metric.type="run.googleapis.com/container/instance_count" AND
+        resource.type="cloud_run_revision" AND
+        resource.label.service_name="${var.service_name_production}"
+      EOT
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.alert_instance_count
+      duration        = "300s"
+    }
+  }
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
+}
+
+resource "google_monitoring_alert_policy" "sgtm_request_latency_alert" {
+  display_name = "SGTM High Request Latency Alert"
+  combiner     = "OR"
+  conditions {
+    display_name = "SGTM Request Latency Exceeds 2 Seconds"
+    condition_threshold {
+      filter = <<-EOT
+        metric.type="run.googleapis.com/request_latencies" AND
+        resource.type="cloud_run_revision" AND
+        resource.label.service_name="${var.service_name_production}"
+      EOT
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_PERCENTILE_99"
+      }
+      comparison      = "COMPARISON_GT"
+      threshold_value = 2000
+      duration        = "300s"
+    }
+  }
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
+}
+
+resource "google_logging_metric" "sgtm_http_error_responses_metric" {
+  name        = "http_error_responses"
+  description = "Count of HTTP error responses for specific paths"
+  filter      = <<EOT
+    resource.type="http_load_balancer"
+    httpRequest.status>=400
+    httpRequest.requestUrl=~("gtm.js" OR "/gtag/" OR "/g/collect")
+  EOT
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    labels {
+      key         = "status_code"
+      value_type  = "INT64"
+      description = "The HTTP status code of the response."
+    }
+  }
+  label_extractors = {
+    "status_code" = "EXTRACT(httpRequest.status)"
+  }
+}
+
+resource "google_monitoring_alert_policy" "sgtm_error_logs_alert" {
+  display_name = "SGTM High HTTP Error Rate Alert"
+  combiner     = "OR"
+  conditions {
+    display_name = "Error Rate Exceeds Threshold"
+    condition_threshold {
+      filter = <<-EOT
+        metric.type="logging.googleapis.com/user/http_error_responses" AND
+        resource.type="l7_lb_rule"
+      EOT
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+      comparison      = "COMPARISON_GT"
+      threshold_value = 5.0
+      duration        = "0s"
+    }
+  }
+  notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
 }
 
 # download cloud function files from github
