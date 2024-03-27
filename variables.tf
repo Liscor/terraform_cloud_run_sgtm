@@ -33,6 +33,11 @@ variable "max_instance_count" {
   type = number
 }
 
+variable "alert_instance_count" {
+  description = "Number of instances after which instance count alert will be triggered."
+  type = number
+}
+
 variable "cpu_boost" {
   description = "Activate CPU boost to allocate more CPUs for instances starting up."
   type = bool
@@ -53,12 +58,12 @@ variable "cloud_run_exclusion_filter" {
   type = string
 }
 
-variable "notification_user" {
-  description = "The name and e-mail address used in the notification channel setup"
-  type        = object({
+variable "notification_users" {
+  description = "List of users for notification"
+  type = list(object({
     name  = string
     email = string
-  })
+  }))
 }
 
 variable "google_storage_bucket_name" {
