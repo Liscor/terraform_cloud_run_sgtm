@@ -373,11 +373,10 @@ resource "google_monitoring_alert_policy" "sgtm_request_latency_alert" {
 
 resource "google_logging_metric" "sgtm_http_error_responses_metric" {
   name        = "http_error_responses"
-  description = "Count of HTTP error responses for specific paths"
+  description = "Count of HTTP error responses for Cloud Run requests"
   filter      = <<EOT
-    resource.type="http_load_balancer"
+    resource.type="cloud_run_revision"
     httpRequest.status>=400
-    httpRequest.requestUrl=~("gtm.js" OR "/gtag/" OR "/g/collect")
   EOT
   metric_descriptor {
     metric_kind = "DELTA"
@@ -401,7 +400,8 @@ resource "google_monitoring_alert_policy" "sgtm_error_logs_alert" {
     condition_threshold {
       filter = <<-EOT
         metric.type="logging.googleapis.com/user/http_error_responses" AND
-        resource.type="l7_lb_rule"
+        resource.type="cloud_run_revision" AND
+        resource.label.service_name="${var.service_name_production}"
       EOT
       aggregations {
         alignment_period   = "300s"
@@ -413,7 +413,7 @@ resource "google_monitoring_alert_policy" "sgtm_error_logs_alert" {
     }
   }
   notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
-  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
+  depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels, google_logging_metric.sgtm_http_error_responses_metric ]
 }
 
 # download cloud function files from github
