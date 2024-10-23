@@ -6,12 +6,39 @@ terraform {
   }
 }
 
+locals {
+  cloudrun_neg = one(google_compute_region_network_endpoint_group.cloudrun_neg[*].id)
+  ip_address = one(google_compute_global_address.default[*].address)
+  backend_default_service = one(google_compute_backend_service.default[*].id)
+  url_map  = one(google_compute_url_map.default[*].id)
+  ssl_certificate = one(google_compute_managed_ssl_certificate.default[*].id)
+  load_balancer_target = one(google_compute_target_https_proxy.default[*].id)
+}
+
 provider "google" {
   project = var.project_id
   region  = var.region
 }
 
-#IAM
+# Enable required Google Cloud APIs
+resource "google_project_service" "compute_engine_api" {
+  count = var.use_load_balancer ? 1 : 0
+  service = "compute.googleapis.com"
+  disable_on_destroy = false
+}
+resource "google_project_service" "dns" {
+  count = var.use_load_balancer ? 1 : 0
+  project = var.project_id
+  service = "dns.googleapis.com"
+}
+
+#Enable logging
+resource "google_project_service" "logging" {
+  service = "logging.googleapis.com"
+  disable_on_destroy = false
+}
+
+#Enable IAM
 resource "google_project_service" "iam_api" {
   service = "iam.googleapis.com"
   disable_on_destroy = false
@@ -22,6 +49,93 @@ resource "google_project_service" "iam_api" {
 resource "google_project_service" "run_api" {
   service = "run.googleapis.com"
   disable_on_destroy = false
+}
+
+#Health Check
+resource "google_compute_health_check" "cloud_run_health_check" {
+  count = var.use_load_balancer ? 1 : 0
+  name = "cloud-run-health-check"
+  check_interval_sec = 5
+  timeout_sec        = 5
+  healthy_threshold  = 2
+  unhealthy_threshold = 2
+
+  http_health_check {
+    request_path = "/healthy"
+    port         = "443"
+  }
+}
+
+#SSL Create
+resource "google_compute_managed_ssl_certificate" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name = "${var.name}-cert"
+  managed {
+    domains = ["${var.domain_name}"]
+  }
+}
+
+#Network Endpoint Group
+resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
+  count = var.use_load_balancer ? 1 : 0
+  provider              = google-beta
+  name                  = "cloud-run-prod-backend"
+  network_endpoint_type = "SERVERLESS"
+  region                = var.region
+  cloud_run {
+    service = google_cloud_run_v2_service.gtm_production.name
+  }
+}
+
+
+#Empty URL Map
+resource "google_compute_url_map" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name            = "${var.name}-urlmap"
+  default_service = local.backend_default_service
+}
+
+
+
+
+#Backend
+resource "google_compute_backend_service" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name      = "${var.name}-backend"
+
+  protocol  = "HTTP"
+  port_name = "http"
+  timeout_sec = 30
+
+  backend {
+    group = local.cloudrun_neg
+  }
+}
+
+resource "google_compute_target_https_proxy" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name   = "${var.name}-https-proxy"
+
+  url_map          = local.url_map
+  ssl_certificates = [
+    local.ssl_certificate
+  ]
+}
+
+#Load Balancer Configuration
+resource "google_compute_global_address" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name = "${var.name}-address"
+}
+
+#Load Balancer Rule
+resource "google_compute_global_forwarding_rule" "default" {
+  count = var.use_load_balancer ? 1 : 0
+  name   = "${var.name}-lb"
+
+  target = local.load_balancer_target
+  port_range = "443"
+  ip_address = local.ip_address
 }
 
 #Cloud Scheduler
@@ -125,7 +239,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
   labels = {
         stack = "sgtm",
         provider = "mohrstade"
-    }  
+    }
   template {
     annotations = {
       "run.googleapis.com/startup-cpu-boost" = var.cpu_boost
@@ -210,7 +324,7 @@ resource "google_monitoring_uptime_check_config" "sgtm_uptime_check" {
   display_name = "sgtm_uptime_check"
   timeout = "10s"
   period = "60s"
-  
+
   http_check {
     path     = "/healthy"
     port     = 443
@@ -226,6 +340,9 @@ resource "google_monitoring_uptime_check_config" "sgtm_uptime_check" {
     }
   }
   depends_on = [ google_cloud_run_v2_service.gtm_production ]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_monitoring_alert_policy" "sgtm_alert_policy" {
@@ -265,7 +382,7 @@ metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.lab
       ]
       per_series_aligner   = "ALIGN_NEXT_OLDER"
     }
-  }    
+  }
   }
 
   notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
@@ -280,7 +397,7 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
     SGTM Update Notice
     The Cloud Run SGTM in "${var.project_id}" was updated to the latest version.
     Check Cloud Function logs for details.
-    
+
     EOT
     mime_type = "text/markdown"
   }
@@ -293,7 +410,7 @@ resource "google_monitoring_alert_policy" "sgtm_update_alert_policy" {
   alert_strategy {
     notification_rate_limit {
       period = "300s"
-    }  
+    }
   }
   notification_channels = [ for channel in google_monitoring_notification_channel.sgtm_notification_channels : channel.id ]
   depends_on = [ google_monitoring_notification_channel.sgtm_notification_channels ]
@@ -472,7 +589,7 @@ resource "google_cloudfunctions_function" "sgtm_updater" {
   depends_on = [ google_storage_bucket_object.source_files ]
 }
 
-# Triggers the sgtm cloud updater for gtm-production once a day 
+# Triggers the sgtm cloud updater for gtm-production once a day
 resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
   name             = "run_sgtm_updater_production"
   description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
@@ -499,7 +616,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
   depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_production ]
 }
 
-# Triggers the sgtm cloud updater for gtm-debug once a day 
+# Triggers the sgtm cloud updater for gtm-debug once a day
 resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
   name             = "run_sgtm_updater_debug"
   description      = "Execute the SGTM Cloud Function on a daily basis to check for updates and deploy these as well."
@@ -524,4 +641,8 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
     }
   }
   depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_preview ]
+}
+
+output "load_balancer_ip" {
+  value = local.ip_address
 }
