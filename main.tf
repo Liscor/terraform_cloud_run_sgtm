@@ -241,6 +241,7 @@ resource "google_cloud_run_v2_service" "gtm_production" {
         stack = "sgtm",
         provider = "mohrstade"
     }
+  deletion_protection = var.deletion_protection
   template {
     annotations = {
       "run.googleapis.com/startup-cpu-boost" = var.cpu_boost
