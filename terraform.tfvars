@@ -2,13 +2,13 @@
 name = "ssgtm"
 
 # Project ID where terraform will build the assests in
-project_id = "terraform-ssgtm-test"
+project_id = "PROJECT_ID"
 
 # The project name
-project_name = "terraform-ssgtm-test"
+project_name = "PROJECT_NAME"
 
 # All resources will be built in this region
-region =  "europe-west3"
+region =  "REGION"
 
 # Container Config string from GTM Webinterface
 container_config = "SGTM_CONTAINER_CONFIG"
@@ -49,9 +49,9 @@ notification_users = [
 ]
 
 # Used to name the google storage bucket
-google_storage_bucket_name = "ssgtm_bucket"
+google_storage_bucket_name = "SSGTM_BUCKET_NAME"
 
-domain_name = "ssgtm.example.com"
+domain_name = "SSGTM.EXAMPLE.COM"
 
 # Do you want to have a load balancer or not
 use_load_balancer = false
