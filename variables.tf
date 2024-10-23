@@ -96,5 +96,5 @@ variable "name" {
 variable "use_load_balancer" {
   description = "Whether to use a load balancer"
   type        = bool
-  default     = true
+  default     = false
 }

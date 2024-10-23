@@ -4,6 +4,7 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 - Uptime Check with Notifications - You will be notified if there is an outage of your SGTM services
 - Docker Image Auto Updates - The SGTM Docker image will be updated automatically once per week (default)
 - Log Exculusion - Logs with the serverity default or notice will be excluded to reduce costs
+- Optional basic load balancer setup enabled via setting use_load_balancer variable to true.
 
 ## Getting Started
 ### Quick Start
