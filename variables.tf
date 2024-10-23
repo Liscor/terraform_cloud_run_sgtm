@@ -98,3 +98,9 @@ variable "use_load_balancer" {
   type        = bool
   default     = false
 }
+
+ variable "deletion_protection" {
+    description = "Whether to enable deletion protection"
+    type        = bool
+    default     = true
+}
