@@ -5,6 +5,7 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 - Docker Image Auto Updates - The SGTM Docker image will be updated automatically once per week (default)
 - Log Exculusion - Logs with the serverity default or notice will be excluded to reduce costs
 - Optional basic load balancer setup enabled via setting use_load_balancer variable to true.
+- The Load balancer contains the Geolocation headres described [here](https://developers.google.com/tag-platform/tag-manager/server-side/)enable-region-specific-settings and the additonals neccesary for sending geolocation data to GA4 described [here](https://www.simoahava.com/gtm-tips/utilize-app-engine-headers-server-side-tagging/) All possible headers are listed [here](https://cloud.google.com/load-balancing/docs/https/custom-headers)
 
 ## Getting Started
 ### Quick Start
