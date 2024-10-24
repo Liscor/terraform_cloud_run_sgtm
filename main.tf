@@ -108,7 +108,6 @@ resource "google_compute_backend_service" "default" {
   port_name = "http"
   timeout_sec = 30
   custom_response_headers  = ["X-Gclb-Country:{client_region},{client_city}","X-Gclb-Region:{client_region_subdivision}"]
-  health_checks            = [local.health_check]
   backend {
     group = local.cloudrun_neg
   }
