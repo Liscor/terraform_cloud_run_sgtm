@@ -13,6 +13,7 @@ locals {
   url_map  = one(google_compute_url_map.default[*].id)
   ssl_certificate = one(google_compute_managed_ssl_certificate.default[*].id)
   load_balancer_target = one(google_compute_target_https_proxy.default[*].id)
+  health_check = one(google_compute_health_check.cloud_run_health_check[*].id)
 }
 
 provider "google" {
@@ -106,7 +107,8 @@ resource "google_compute_backend_service" "default" {
   protocol  = "HTTP"
   port_name = "http"
   timeout_sec = 30
-
+  custom_response_headers  = ["X-Gclb-Country:{client_region},{client_city}","X-Gclb-Region:{client_region_subdivision}"]
+  health_checks            = [local.health_check]
   backend {
     group = local.cloudrun_neg
   }
