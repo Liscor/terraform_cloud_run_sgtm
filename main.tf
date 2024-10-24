@@ -13,7 +13,6 @@ locals {
   url_map  = one(google_compute_url_map.default[*].id)
   ssl_certificate = one(google_compute_managed_ssl_certificate.default[*].id)
   load_balancer_target = one(google_compute_target_https_proxy.default[*].id)
-  health_check = one(google_compute_health_check.cloud_run_health_check[*].id)
 }
 
 provider "google" {
