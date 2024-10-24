@@ -45,6 +45,10 @@ resource "google_project_service" "iam_api" {
   disable_on_destroy = false
 }
 
+#SET NETWORKING TIER
+resource "google_compute_project_default_network_tier" "default" {
+  network_tier = "PREMIUM"
+}
 
 #Cloud Run
 resource "google_project_service" "run_api" {
