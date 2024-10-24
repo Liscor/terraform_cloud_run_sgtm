@@ -1,8 +1,14 @@
-# Project ID where terraform will build the assests in 
-project_id = "YOUR_GCP_RPOJECT_ID"
+# Name prefix for the resources
+name = "ssgtm"
+
+# Project ID where terraform will build the assests in
+project_id = "PROJECT_ID"
+
+# The project name
+project_name = "PROJECT_NAME"
 
 # All resources will be built in this region
-region =  "europe-west3"
+region =  "REGION"
 
 # Container Config string from GTM Webinterface
 container_config = "SGTM_CONTAINER_CONFIG"
@@ -28,7 +34,7 @@ update_interval = "0 8 * * *"
 # The filter to define which logs will be excluded
 cloud_run_exclusion_filter = "resource.type=\"cloud_run_revision\" AND severity = \"INFO\" OR severity =\"DEFAULT\""
 
-# Used for error notfication alerting 
+# Used for error notfication alerting
 notification_users = [
   {
     name  = "USER_NAME_1",
@@ -43,4 +49,9 @@ notification_users = [
 ]
 
 # Used to name the google storage bucket
-google_storage_bucket_name = "RANDOM_STRING"
+google_storage_bucket_name = "SSGTM_BUCKET_NAME"
+
+domain_name = "SSGTM.EXAMPLE.COM"
+
+# Do you want to have a load balancer or not
+use_load_balancer = false

@@ -3,9 +3,20 @@ variable "project_id" {
   type        = string
 }
 
+variable "project_name" {
+  description = "The name of the project"
+  type        = string
+}
+
 variable "region" {
   description = "The name of the region to deploy within"
   type        = string
+}
+
+variable "organization_id" {
+  description = "The organization ID for your project"
+  type        = string
+  default     = null  # Set null if not part of an organization
 }
 
 variable "container_config" {
@@ -45,12 +56,12 @@ variable "cpu_boost" {
 
 variable "cloud_function_update_filter" {
   description = "The Cloud function logs when the the Cloud Run SGTM instance gets updated."
-  type = string 
+  type = string
 }
 
 variable "update_interval" {
   description = "Update interval for the Cloud Function updating the SGTM Image in unix-cron job format - Default everyday at 8:00 am UTC"
-  type = string 
+  type = string
 }
 
 variable "cloud_run_exclusion_filter" {
@@ -69,4 +80,27 @@ variable "notification_users" {
 variable "google_storage_bucket_name" {
     description = "The unique name of the google storage bucket"
     type = string
+}
+
+variable "domain_name" {
+  description = "Domain name for the load balancer."
+  type        = string
+  default     = ""
+}
+
+variable "name" {
+  description = "The name of the stack"
+  type        = string
+}
+
+variable "use_load_balancer" {
+  description = "Whether to use a load balancer"
+  type        = bool
+  default     = false
+}
+
+ variable "deletion_protection" {
+    description = "Whether to enable deletion protection"
+    type        = bool
+    default     = true
 }
