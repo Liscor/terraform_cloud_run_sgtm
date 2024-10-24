@@ -44,6 +44,10 @@ resource "google_project_service" "iam_api" {
   disable_on_destroy = false
 }
 
+#SET NETWORKING TIER
+resource "google_compute_project_default_network_tier" "default" {
+  network_tier = "PREMIUM"
+}
 
 #Cloud Run
 resource "google_project_service" "run_api" {
@@ -106,7 +110,12 @@ resource "google_compute_backend_service" "default" {
   protocol  = "HTTP"
   port_name = "http"
   timeout_sec = 30
-
+  custom_response_headers  = [
+    "X-Gclb-Country:{client_region}",
+    "X-Gclb-Region:{client_region_subdivision}",
+    "X-Gclb-City:{client_city}",
+    "X-Gclb-Citylatlong:{client_city_lat_long}"
+  ]
   backend {
     group = local.cloudrun_neg
   }

@@ -55,3 +55,6 @@ domain_name = "SSGTM.EXAMPLE.COM"
 
 # Do you want to have a load balancer or not
 use_load_balancer = false
+
+# Deletion protection
+deletion_protection=false
