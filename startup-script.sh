@@ -1,3 +1,11 @@
+#! /bin/bash
+apt update
+apt -y install apache2
+cat <<EOF > /var/www/html/index.html
+<html><body><p>Linux startup script from a local file.</p></body></html>
+EOF
+
+
 sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
 
 wget -O- https://apt.releases.hashicorp.com/gpg | \
