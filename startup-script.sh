@@ -1,12 +1,6 @@
 #! /bin/bash
-sleep 10
-apt update
-apt -y install apache2
-cat <<EOF > /var/www/html/index.html
-<html><body><p>Linux startup script from a local file.</p></body></html>
-EOF
 
-
+#install Terraform
 sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
 
 wget -O- https://apt.releases.hashicorp.com/gpg | \
@@ -24,3 +18,8 @@ sudo tee /etc/apt/sources.list.d/hashicorp.list
 sudo apt update
 
 sudo apt-get install -y terraform
+
+
+#gcloud init
+gcloud init
+gcloud auth application-default login
