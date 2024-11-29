@@ -21,7 +21,7 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 
 ### Run in Google Cloud Shell
 1. Use This link to the [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars)
-   1. If you want the Cloud Shell Instance to not be persistant add `&ephemeral=true` to the link above. 
+   1. If you want the Cloud Shell Instance to not be persistant use this link: [non-persistant Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars&ephemeral=true).
 2. Trust the Repo and Confirm when prompted.
 3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars File.
 4. Run `bash run_this.sh` 
