@@ -26,6 +26,7 @@ resource "google_project_service" "compute_engine_api" {
   service = "compute.googleapis.com"
   disable_on_destroy = false
 }
+
 resource "google_project_service" "dns" {
   count = var.use_load_balancer ? 1 : 0
   project = var.project_id
@@ -44,16 +45,8 @@ resource "google_project_service" "iam_api" {
   disable_on_destroy = false
 }
 
-#Enable GCP Resource Manager API
-resource "google_project_service" "gcp_resource_manager_api" {
-  count = var.use_load_balancer ? 1 : 0
-  project = var.project_id
-  service = "cloudresourcemanager.googleapis.com"
-}
-
 #SET NETWORKING TIER
 resource "google_compute_project_default_network_tier" "default" {
-  count = var.use_load_balancer ? 1 : 0
   network_tier = "PREMIUM"
 }
 
