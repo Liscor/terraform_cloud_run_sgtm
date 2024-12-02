@@ -18,6 +18,7 @@ sudo apt-get install -y terraform
 gcloud init
 gcloud auth application-default login
 gcloud services enable cloudresourcemanager.googleapis.com
+gcloud services enable compute.googleapis.com
 
 #Initialize Terraform
 terraform init
