@@ -26,6 +26,7 @@ resource "google_project_service" "compute_engine_api" {
   service = "compute.googleapis.com"
   disable_on_destroy = false
 }
+
 resource "google_project_service" "dns" {
   count = var.use_load_balancer ? 1 : 0
   project = var.project_id
@@ -41,6 +42,12 @@ resource "google_project_service" "logging" {
 #Enable IAM
 resource "google_project_service" "iam_api" {
   service = "iam.googleapis.com"
+  disable_on_destroy = false
+}
+
+#Enable Compute Engine API
+resource "google_project_service" "compute_api" {
+  service            = "compute.googleapis.com"
   disable_on_destroy = false
 }
 

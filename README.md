@@ -19,4 +19,21 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 3. Change the variables inside terraform.tfvars.example to suit your needs and rename the file to terraform.tfvars. Make sure you have created the SGTM Container already to retrieve the container config.
 4. Run `terraform init` to initialize the repository and `terraform apply` the infrastructure will be built on GCP
 
+### Run in Google Cloud Shell
+1. Use This link to the [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars)
+   1. If you want the Cloud Shell Instance to not be persistant use this link: [non-persistant Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars&ephemeral=true).
+2. Trust the Repo and Confirm when prompted.
+3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars File.
+4. Run `bash run_this.sh` 
+   1. Click Authorize when asked to Authorize Cloud Shell.
+   2. Hit `1` to initialize with new settings
+   3. Hit `1` to sign in or sign in manually to the Google Account you want to use.
+   4. Enter the project ID, create a new project or choose from the list of projects the one you want to use.
+   5. Hit `y` to proceed. This Cloud Shell Instance is Ephemeral, it destroys itself after 20 Minutes of inactivity.
+   6. Click the Link that is shown, choose the desired Google Account, sign in to Google Auth Library and grant access.
+   7. Click the `Copy` Button and paste to Google Cloud Shell.
+   8. You should now see something like this: `YOUR_NAME@cloudshell:~/cloudshell_open/terraform_cloud_run_sgtm (YOUR_PROJECT_ID)$`
+5. Change the variables inside terraform.tfvars to suit your needs. Make sure you have created the SGTM Container already to retrieve the container config.
+6. Run `terraform apply` the infrastructure will be built on GCP.
+
 Check this [repo](https://github.com/Liscor/sgtm_cloud_run_updater) for detailed documentation about the sGTM updater Cloud Function repository.
