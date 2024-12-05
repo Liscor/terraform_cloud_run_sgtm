@@ -38,4 +38,4 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 
 Check this [repo](https://github.com/Liscor/sgtm_cloud_run_updater) for detailed documentation about the sGTM updater Cloud Function repository.
 
-only for testing: [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtmtree/shell-console&page=editor&open_in_editor=terraform.tfvars)
+only for testing: [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm/tree/shell-console&page=editor&open_in_editor=terraform.tfvars)
