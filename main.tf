@@ -47,12 +47,14 @@ resource "google_project_service" "iam_api" {
 
 #Enable Compute Engine API
 resource "google_project_service" "compute_api" {
+  count = var.use_load_balancer ? 1 : 0
   service            = "compute.googleapis.com"
   disable_on_destroy = false
 }
 
 #SET NETWORKING TIER
 resource "google_compute_project_default_network_tier" "default" {
+  count = var.use_load_balancer ? 1 : 0
   network_tier = "PREMIUM"
 }
 

@@ -14,11 +14,6 @@ sudo tee /etc/apt/sources.list.d/hashicorp.list
 sudo apt update
 sudo apt-get install -y terraform
 
-#Initialize GCloud
+#GCloud init
 gcloud init
 gcloud auth application-default login
-gcloud services enable cloudresourcemanager.googleapis.com
-gcloud services enable compute.googleapis.com
-
-#Initialize Terraform
-terraform init

@@ -24,7 +24,7 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
    1. If you want the Cloud Shell Instance to not be persistant use this link: [non-persistant Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars&ephemeral=true).
 2. Trust the Repo and Confirm when prompted.
 3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars File.
-4. Run `bash run_this.sh` 
+4. Run `bash init.sh` 
    1. Click Authorize when asked to Authorize Cloud Shell.
    2. Hit `1` to initialize with new settings
    3. Hit `1` to sign in or sign in manually to the Google Account you want to use.
@@ -34,6 +34,8 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
    7. Click the `Copy` Button and paste to Google Cloud Shell.
    8. You should now see something like this: `YOUR_NAME@cloudshell:~/cloudshell_open/terraform_cloud_run_sgtm (YOUR_PROJECT_ID)$`
 5. Change the variables inside terraform.tfvars to suit your needs. Make sure you have created the SGTM Container already to retrieve the container config.
-6. Run `terraform apply` the infrastructure will be built on GCP.
+6. Run `bash apply.sh` the infrastructure will be built.
 
 Check this [repo](https://github.com/Liscor/sgtm_cloud_run_updater) for detailed documentation about the sGTM updater Cloud Function repository.
+
+only for testing: [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtmtree/shell-console&page=editor&open_in_editor=terraform.tfvars)
