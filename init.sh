@@ -13,3 +13,6 @@ https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
 sudo tee /etc/apt/sources.list.d/hashicorp.list
 sudo apt update
 sudo apt-get install -y terraform
+
+#GCloud LogIn
+gcloud auth application-default login
