@@ -26,13 +26,8 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars File.
 4. Run `bash init.sh` 
    1. Click Authorize when asked to Authorize Cloud Shell.
-   2. Hit `1` to initialize with new settings
-   3. Hit `1` to sign in or sign in manually to the Google Account you want to use.
-   4. Enter the project ID, create a new project or choose from the list of projects the one you want to use.
-   5. Hit `y` to proceed. This Cloud Shell Instance is Ephemeral, it destroys itself after 20 Minutes of inactivity.
-   6. Click the Link that is shown, choose the desired Google Account, sign in to Google Auth Library and grant access.
-   7. Click the `Copy` Button and paste to Google Cloud Shell.
-   8. You should now see something like this: `YOUR_NAME@cloudshell:~/cloudshell_open/terraform_cloud_run_sgtm (YOUR_PROJECT_ID)$`
+   2. Click the Link that is shown, choose the desired Google Account, sign in to Google Auth Library and grant access.
+   3. Click the `Copy` Button and paste to Google Cloud Shell.
 5. Change the variables inside terraform.tfvars to suit your needs. Make sure you have created the SGTM Container already to retrieve the container config.
 6. Run `bash apply.sh` the infrastructure will be built.
 
