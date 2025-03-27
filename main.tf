@@ -45,15 +45,13 @@ resource "google_project_service" "iam_api" {
   disable_on_destroy = false
 }
 
-#Enable Compute Engine API
-resource "google_project_service" "compute_api" {
-  service            = "compute.googleapis.com"
-  disable_on_destroy = false
-}
-
 #SET NETWORKING TIER
 resource "google_compute_project_default_network_tier" "default" {
+  count = var.use_load_balancer ? 1 : 0
   network_tier = "PREMIUM"
+  depends_on = [
+      google_project_service.compute_engine_api
+  ]
 }
 
 #Cloud Run
@@ -98,16 +96,12 @@ resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
   }
 }
 
-
 #Empty URL Map
 resource "google_compute_url_map" "default" {
   count = var.use_load_balancer ? 1 : 0
   name            = "${var.name}-urlmap"
   default_service = local.backend_default_service
 }
-
-
-
 
 #Backend
 resource "google_compute_backend_service" "default" {
