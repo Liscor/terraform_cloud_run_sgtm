@@ -1,0 +1,75 @@
+name: Terraform CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push events for all branches
+  push:
+    branches:
+      - '**' # Run on pushes to all branches
+  # Triggers the workflow on pull request events targeted at any branch
+  pull_request:
+    branches:
+      - '**' # Run on PRs targeting any branch
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This job validates the Terraform code
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+
+    steps:
+      # 1. Checkout code
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout Code
+        uses: actions/checkout@v4 # Use V4 of the checkout action
+
+      # 2. Setup Terraform
+      # Installs a specific version of Terraform CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # You can specify a Terraform version here, e.g., terraform_version: '1.7.0'
+          # If omitted, it defaults to the latest stable version
+          terraform_wrapper: false # Recommended to avoid potential complexities unless needed
+
+      # 3. Terraform Format Check
+      # Checks if all Terraform files are correctly formatted
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        # If your Terraform files are not in the root, add: working-directory: ./path/to/tf/code
+        continue-on-error: true # Fail the job if formatting is incorrect
+
+      # 4. Terraform Init
+      # Initializes a working directory containing Terraform configuration files.
+      # This downloads providers.
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend=false # Use -backend=false for validation without configuring state
+        # If your Terraform files are not in the root, add: working-directory: ./path/to/tf/code
+        continue-on-error: false # Fail the job if init fails
+
+      # 5. Terraform Validate
+      # Validates the configuration files in a directory, referring only to the configuration
+      # and not accessing any remote services such as remote state, provider APIs, etc.
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+        # If your Terraform files are not in the root, add: working-directory: ./path/to/tf/code
+        continue-on-error: false # Fail the job if validation fails
+
+      # --- Optional but Recommended Steps ---
+
+      # 6. Install TFLint (Terraform Linter)
+      # Checks your Terraform code for possible errors, best practices, etc.
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest # Or specify a version e.g., v0.50.3
+
+      # 7. Run TFLint
+      - name: Run TFLint
+        run: tflint --recursive --format compact
+        # If your Terraform files are not in the root, add: working-directory: ./path/to/tf/code
+        continue-on-error: true # Decide if linting failures should stop the pipeline
