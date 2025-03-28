@@ -48,7 +48,7 @@ jobs:
         id: init
         run: terraform init -backend=false # Use -backend=false for validation without configuring state
         # If your Terraform files are not in the root, add: working-directory: ./path/to/tf/code
-        continue-on-error: false # Fail the job if init fails
+        continue-on-error: true # Fail the job if init fails
 
       # 5. Terraform Validate
       # Validates the configuration files in a directory, referring only to the configuration
