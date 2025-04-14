@@ -180,7 +180,8 @@ resource "google_project_iam_member" "sgtm_add_roles" {
   for_each = toset([
     "roles/run.invoker",
     "roles/cloudfunctions.invoker",
-    "roles/cloudfunctions.serviceAgent"
+    "roles/cloudfunctions.serviceAgent",
+    "roles/artifactregistry.reader"
     ])
   project = var.project_id
   role = each.value
