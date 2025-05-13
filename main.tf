@@ -101,9 +101,41 @@ resource "google_compute_url_map" "default" {
   count = var.use_load_balancer ? 1 : 0
   name            = "${var.name}-urlmap"
   default_service = local.backend_default_service
+  
+  host_rule {
+    hosts = ["${var.domain_name}"]
+    path_matcher = "scripts"
+  }
+
+  path_matcher {
+    name            = "scripts"
+    default_service = local.backend_default_service
+
+    path_rule {
+      paths = ["/gtm.js", "/gtag/*"]
+      service = google_compute_backend_service.scripts[count.index].id
+    }
+  }
 }
 
-#Backend
+#Backend for script serving
+resource "google_compute_backend_service" "scripts" {
+  count = var.use_load_balancer ? 1 : 0
+  name      = "${var.name}-script-serving-backend"
+
+  protocol  = "HTTPS"
+  port_name = "http"
+  timeout_sec = 30
+  custom_request_headers  = [
+    "X-Gclb-Country:{client_region}",
+    "X-Gclb-Region:{client_region_subdivision}"
+  ]
+  backend {
+    group = local.cloudrun_neg
+  }
+}
+
+#Backend default
 resource "google_compute_backend_service" "default" {
   count = var.use_load_balancer ? 1 : 0
   name      = "${var.name}-backend"
