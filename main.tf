@@ -80,7 +80,7 @@ resource "google_compute_managed_ssl_certificate" "default" {
   count = var.use_load_balancer ? 1 : 0
   name = "${var.name}-cert"
   managed {
-    domains = ["${var.domain_name}"]
+    domains = var.domain_names
   }
 }
 

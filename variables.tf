@@ -92,10 +92,9 @@ variable "google_storage_bucket_name" {
     type = string
 }
 
-variable "domain_name" {
-  description = "Domain name for the load balancer."
-  type        = string
-  default     = ""
+variable "domain_names" {
+  description = "Domain names for the load balancer."
+  type        = list(string)
 }
 
 variable "name" {
