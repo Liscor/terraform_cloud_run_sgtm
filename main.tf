@@ -103,7 +103,7 @@ resource "google_compute_url_map" "default" {
   default_service = local.backend_default_service
   
   host_rule {
-    hosts = ["${var.domain_name}"]
+    hosts = var.domain_names
     path_matcher = "scripts"
   }
 
