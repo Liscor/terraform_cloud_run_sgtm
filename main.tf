@@ -128,7 +128,9 @@ resource "google_compute_backend_service" "scripts" {
   timeout_sec = 30
   custom_request_headers  = [
     "X-Gclb-Country:{client_region}",
-    "X-Gclb-Region:{client_region_subdivision}"
+    "X-Gclb-Region:{client_region_subdivision}",
+    "X-Gclb-City:{client_city}",
+    "X-Gclb-Citylatlong:{client_city_lat_long}"
   ]
   backend {
     group = local.cloudrun_neg
@@ -143,12 +145,6 @@ resource "google_compute_backend_service" "default" {
   protocol  = "HTTP"
   port_name = "http"
   timeout_sec = 30
-  custom_response_headers  = [
-    "X-Gclb-Country:{client_region}",
-    "X-Gclb-Region:{client_region_subdivision}",
-    "X-Gclb-City:{client_city}",
-    "X-Gclb-Citylatlong:{client_city_lat_long}"
-  ]
   backend {
     group = local.cloudrun_neg
   }
