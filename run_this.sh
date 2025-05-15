@@ -19,6 +19,7 @@ gcloud init
 gcloud auth application-default login
 gcloud services enable cloudresourcemanager.googleapis.com
 gcloud services enable compute.googleapis.com
+gcloud services enable serviceusage.googleapis.com
 
 #Initialize Terraform
 terraform init
