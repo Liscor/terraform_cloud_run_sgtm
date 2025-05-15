@@ -27,7 +27,10 @@ notification_users = [
 # Used to name the google storage bucket. Must be globally unique.
 google_storage_bucket_name = "sgtm_bucket_name"
 
-domain_name = "SGTM.EXAMPLE.COM"
+# Used to add custom domain names to the load balancer
+# Separate multiple domain names with a comma
+# e.g. domain_names = ["sgtm.example.com", "sgtm2.example.com"]
+domain_names = ["SGTM.EXAMPLE.COM"]
 
 # Do you want to have a load balancer or not
 use_load_balancer = false

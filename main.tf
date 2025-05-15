@@ -80,7 +80,7 @@ resource "google_compute_managed_ssl_certificate" "default" {
   count = var.use_load_balancer ? 1 : 0
   name = "${var.name}-cert"
   managed {
-    domains = ["${var.domain_name}"]
+    domains = var.domain_names
   }
 }
 
@@ -103,7 +103,7 @@ resource "google_compute_url_map" "default" {
   default_service = local.backend_default_service
   
   host_rule {
-    hosts = ["${var.domain_name}"]
+    hosts = var.domain_names
     path_matcher = "scripts"
   }
 
