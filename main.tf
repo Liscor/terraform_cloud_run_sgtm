@@ -122,7 +122,10 @@ resource "google_compute_url_map" "default" {
 resource "google_compute_backend_service" "scripts" {
   count = var.use_load_balancer ? 1 : 0
   name      = "${var.name}-script-serving-backend"
-
+  enable_cdn  = true
+  cdn_policy {
+    signed_url_cache_max_age_sec = 7200
+  }
   protocol  = "HTTPS"
   port_name = "http"
   timeout_sec = 30
