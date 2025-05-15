@@ -13,6 +13,7 @@ locals {
   url_map  = one(google_compute_url_map.default[*].id)
   ssl_certificate = one(google_compute_managed_ssl_certificate.default[*].id)
   load_balancer_target = one(google_compute_target_https_proxy.default[*].id)
+  production_service_hostname = replace(google_cloud_run_v2_service.gtm_production.uri, "https://", "")
 }
 
 provider "google" {
@@ -129,6 +130,7 @@ resource "google_compute_backend_service" "scripts" {
   protocol  = "HTTPS"
   port_name = "http"
   timeout_sec = 30
+  security_policy = google_compute_security_policy.policy[count.index].id
   custom_request_headers  = [
     "X-Gclb-Country:{client_region}",
     "X-Gclb-Region:{client_region_subdivision}",
@@ -148,8 +150,39 @@ resource "google_compute_backend_service" "default" {
   protocol  = "HTTP"
   port_name = "http"
   timeout_sec = 30
+  security_policy = google_compute_security_policy.policy[count.index].id
   backend {
     group = local.cloudrun_neg
+  }
+}
+
+#Cloud Armor Security Policy
+resource "google_compute_security_policy" "policy" {
+  count = var.use_load_balancer ? 1 : 0
+  name = "${var.name}-cloud-armor-policy"
+  description = "Cloud Armor policy for SGTM"
+
+  rule {
+    action   = "allow"
+    priority = "1000"
+    match {
+      expr {
+        expression = "request.headers['host'].lower().matches('${join("|", concat([for domain in var.domain_names : replace(domain, ".", "\\\\.")], [replace(local.production_service_hostname, ".", "\\\\.")]))}')"
+      }
+    }
+    description = "Allow requests to the SGTM service"
+  }
+
+  rule {
+    action   = "deny(403)"
+    priority = "2147483647"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+    description = "Deny all other requests"
   }
 }
 
