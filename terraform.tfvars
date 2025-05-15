@@ -30,7 +30,7 @@ google_storage_bucket_name = "sgtm_bucket_name"
 # Used to add custom domain names to the load balancer
 # Separate multiple domain names with a comma
 # e.g. domain_names = ["sgtm.example.com", "sgtm2.example.com"]
-domain_names = ["SGTM.EXAMPLE.COM"]
+domain_names = ["sgtm.example.com"]
 
 # Do you want to have a load balancer or not
 use_load_balancer = false
