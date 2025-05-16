@@ -95,6 +95,12 @@ variable "google_storage_bucket_name" {
 variable "domain_names" {
   description = "Domain names for the load balancer."
   type        = list(string)
+  default     = null
+
+  validation {
+    condition     = !var.use_load_balancer || (var.use_load_balancer && var.domain_names != null && length(var.domain_names) > 0)
+    error_message = "If 'use_load_balancer' is true, 'domain_names' must be a non-empty list of domain names."
+  }
 }
 
 variable "name" {
