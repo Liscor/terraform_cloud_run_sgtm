@@ -88,19 +88,14 @@ variable "notification_users" {
 }
 
 variable "google_storage_bucket_name" {
-    description = "The unique name of the google storage bucket"
+    description = "The suffix for the google storage bucket name. Will be prefixed with project_id to ensure global uniqueness (final name: <project_id>-<this_value>)"
     type = string
 }
 
 variable "domain_names" {
-  description = "Domain names for the load balancer."
+  description = "Domain names for the load balancer. Required when use_load_balancer is true."
   type        = list(string)
   default     = null
-
-  validation {
-    condition     = !var.use_load_balancer || (var.use_load_balancer && var.domain_names != null && length(var.domain_names) > 0)
-    error_message = "If 'use_load_balancer' is true, 'domain_names' must be a non-empty list of domain names."
-  }
 }
 
 variable "name" {

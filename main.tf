@@ -80,6 +80,14 @@ resource "google_compute_health_check" "cloud_run_health_check" {
 resource "google_compute_managed_ssl_certificate" "default" {
   count = var.use_load_balancer ? 1 : 0
   name = "${var.name}-cert"
+
+  lifecycle {
+    precondition {
+      condition     = var.domain_names != null && length(var.domain_names) > 0
+      error_message = "If 'use_load_balancer' is true, 'domain_names' must be a non-empty list of domain names."
+    }
+  }
+
   managed {
     domains = var.domain_names
   }
@@ -226,6 +234,19 @@ resource "google_project_service" "cloud_build" {
 resource "google_project_service" "cloud_functions" {
   service = "cloudfunctions.googleapis.com"
   disable_on_destroy = false
+}
+
+resource "google_project_service" "artifact_registry" {
+  service = "artifactregistry.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Grant the default Cloud Functions service account access to Artifact Registry
+resource "google_project_iam_member" "cloudfunctions_artifact_registry" {
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${var.project_id}@appspot.gserviceaccount.com"
+  depends_on = [google_project_service.cloud_functions, google_project_service.artifact_registry]
 }
 
 #Alerts
@@ -639,7 +660,7 @@ data "archive_file" "function_zip" {
 }
 
 resource "google_storage_bucket" "bucket" {
-  name     = var.google_storage_bucket_name
+  name     = "${var.project_id}-${var.google_storage_bucket_name}"
   location = "EU"
 }
 
