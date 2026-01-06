@@ -76,7 +76,7 @@ variable "update_interval" {
 variable "cloud_run_exclusion_filter" {
   description = "The Cloud Run logs which will be exclude from the _default bucket."
   type = string
-  default = "resource.type=\"cloud_run_revision\" AND severity = \"INFO\" OR severity =\"DEFAULT\""
+  default = "resource.type=\"cloud_run_revision\" AND (resource.labels.service_name=\"sgtm-production\" OR resource.labels.service_name=\"sgtm-preview\") AND (severity=\"INFO\" OR severity=\"DEFAULT\")"
 }
 
 variable "notification_users" {

@@ -672,19 +672,39 @@ resource "google_storage_bucket_object" "source_files" {
   depends_on = [ google_storage_bucket.bucket, data.archive_file.function_zip ]
 }
 
-# Create Cloud Function for updating
-resource "google_cloudfunctions_function" "sgtm_updater" {
+# Create Cloud Function Gen2 for updating
+resource "google_cloudfunctions2_function" "sgtm_updater" {
   name        = "sgtm_cloud_run_updater"
   description = "Cloud Function to update the Cloud Run sgtm if necessary."
-  service_account_email = google_service_account.sgtm_service_account.email
-  runtime     = "nodejs20"
-  region = var.region
-  available_memory_mb   = 256
-  source_archive_bucket = google_storage_bucket.bucket.name
-  source_archive_object = google_storage_bucket_object.source_files.name
-  trigger_http          = true
-  entry_point           = "check_cloud_run"
-  depends_on = [ google_storage_bucket_object.source_files ]
+  location    = var.region
+
+  build_config {
+    runtime     = "nodejs20"
+    entry_point = "check_cloud_run"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.bucket.name
+        object = google_storage_bucket_object.source_files.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count    = 1
+    available_memory      = "256M"
+    timeout_seconds       = 420
+    service_account_email = google_service_account.sgtm_service_account.email
+  }
+
+  depends_on = [ google_storage_bucket_object.source_files, google_project_service.cloud_functions ]
+}
+
+# Grant the service account permission to invoke the Cloud Function Gen2
+resource "google_cloud_run_service_iam_member" "sgtm_updater_invoker" {
+  location = google_cloudfunctions2_function.sgtm_updater.location
+  service  = google_cloudfunctions2_function.sgtm_updater.service_config[0].service
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.sgtm_service_account.email}"
 }
 
 # Triggers the sgtm cloud updater for gtm-production once a day
@@ -702,7 +722,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
 
   http_target {
     http_method = "POST"
-    uri         = google_cloudfunctions_function.sgtm_updater.https_trigger_url
+    uri         = google_cloudfunctions2_function.sgtm_updater.service_config[0].uri
     body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_production.name}\"}")
     headers = {
       "Content-Type" = "application/json"
@@ -711,7 +731,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_production" {
       service_account_email = google_service_account.sgtm_service_account.email
     }
   }
-  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_production ]
+  depends_on = [ google_cloudfunctions2_function.sgtm_updater,google_cloud_run_v2_service.gtm_production ]
 }
 
 # Triggers the sgtm cloud updater for gtm-debug once a day
@@ -729,7 +749,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
 
   http_target {
     http_method = "POST"
-    uri         = google_cloudfunctions_function.sgtm_updater.https_trigger_url
+    uri         = google_cloudfunctions2_function.sgtm_updater.service_config[0].uri
     body        = base64encode("{\"project_id\":\"${var.project_id}\",\"region\":\"${var.region}\",\"service_name\":\"${google_cloud_run_v2_service.gtm_preview.name}\"}")
     headers = {
       "Content-Type" = "application/json"
@@ -738,7 +758,7 @@ resource "google_cloud_scheduler_job" "run_sgtm_updater_debug" {
       service_account_email = google_service_account.sgtm_service_account.email
     }
   }
-  depends_on = [ google_cloudfunctions_function.sgtm_updater,google_cloud_run_v2_service.gtm_preview ]
+  depends_on = [ google_cloudfunctions2_function.sgtm_updater,google_cloud_run_v2_service.gtm_preview ]
 }
 
 output "load_balancer_ip" {
