@@ -1,16 +1,16 @@
 # Name prefix for the resources
 name = "sgtm"
 
-# Project ID where terraform will build the assests in
+# Project ID where Terraform will build the assets in
 project_id = "PROJECT_ID"
 
 # The project name
 project_name = "PROJECT_NAME"
 
-# Container Config string from GTM Webinterface
+# Container config string from GTM web interface
 container_config = "SGTM_CONTAINER_CONFIG"
 
-# Used for error notfication alerting
+# Used for error notification alerting
 notification_users = [
   {
     name  = "USER_NAME_1",
@@ -24,7 +24,7 @@ notification_users = [
   # Add more users if needed
 ]
 
-# Used to name the google storage bucket. Must be globally unique.
+# Used to name the Google Storage bucket. Must be globally unique.
 google_storage_bucket_name = "sgtm_bucket_name"
 
 # Used to add custom domain names to the load balancer
@@ -36,4 +36,4 @@ domain_names = ["sgtm.example.com"]
 use_load_balancer = false
 
 # Deletion protection
-deletion_protection=false
+deletion_protection = false

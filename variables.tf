@@ -17,66 +17,66 @@ variable "region" {
 variable "organization_id" {
   description = "The organization ID for your project"
   type        = string
-  default     = null  # Set null if not part of an organization
+  default     = null # Set null if not part of an organization
 }
 
 variable "container_config" {
-    description = "The container configuration string obtained from the Google Tag Manager Webinterface"
-    type = string
+  description = "The container configuration string obtained from the Google Tag Manager Webinterface"
+  type        = string
 }
 
 variable "service_name_production" {
-    description = "The name of the SGTM production service in Cloud Run."
-    type = string
-    default = "sgtm-production"
+  description = "The name of the SGTM production service in Cloud Run."
+  type        = string
+  default     = "sgtm-production"
 }
 
 variable "service_name_preview" {
-    description = "The name of the SGTM preview service in Cloud Run."
-    type = string
-    default = "sgtm-preview"
+  description = "The name of the SGTM preview service in Cloud Run."
+  type        = string
+  default     = "sgtm-preview"
 }
 
 variable "min_instance_count" {
-  description = "The maximum instances the Cloud Run service for production SGTM can create."
-  type = number
-  default = 0
+  description = "The minimum instances the Cloud Run service for production SGTM should maintain."
+  type        = number
+  default     = 0
 }
 
 variable "max_instance_count" {
   description = "The maximum instances the Cloud Run service for production SGTM can create."
-  type = number
-  default = 10
+  type        = number
+  default     = 10
 }
 
 variable "alert_instance_count" {
   description = "Number of instances after which instance count alert will be triggered."
-  type = number
-  default = 8
+  type        = number
+  default     = 8
 }
 
 variable "cpu_boost" {
   description = "Activate CPU boost to allocate more CPUs for instances starting up."
-  type = bool
-  default = false
+  type        = bool
+  default     = false
 }
 
 variable "cloud_function_update_filter" {
   description = "The Cloud function logs when the the Cloud Run SGTM instance gets updated."
-  type = string
-  default = "resource.type=\"cloud_function\" \nAND textPayload=~\"Versions are different: Deploying a new revision\""
+  type        = string
+  default     = "resource.type=\"cloud_function\" \nAND textPayload=~\"Versions are different: Deploying a new revision\""
 }
 
 variable "update_interval" {
   description = "Update interval for the Cloud Function updating the SGTM Image in unix-cron job format - Default everyday at 8:00 am UTC"
-  type = string
-  default = "0 8 * * *"
+  type        = string
+  default     = "0 8 * * *"
 }
 
 variable "cloud_run_exclusion_filter" {
   description = "The Cloud Run logs which will be exclude from the _default bucket."
-  type = string
-  default = "resource.type=\"cloud_run_revision\" AND (resource.labels.service_name=\"sgtm-production\" OR resource.labels.service_name=\"sgtm-preview\") AND (severity=\"INFO\" OR severity=\"DEFAULT\")"
+  type        = string
+  default     = "resource.type=\"cloud_run_revision\" AND (resource.labels.service_name=\"sgtm-production\" OR resource.labels.service_name=\"sgtm-preview\") AND (severity=\"INFO\" OR severity=\"DEFAULT\")"
 }
 
 variable "notification_users" {
@@ -88,8 +88,8 @@ variable "notification_users" {
 }
 
 variable "google_storage_bucket_name" {
-    description = "The suffix for the google storage bucket name. Will be prefixed with project_id to ensure global uniqueness (final name: <project_id>-<this_value>)"
-    type = string
+  description = "The suffix for the google storage bucket name. Will be prefixed with project_id to ensure global uniqueness (final name: <project_id>-<this_value>)"
+  type        = string
 }
 
 variable "domain_names" {
@@ -109,8 +109,8 @@ variable "use_load_balancer" {
   default     = false
 }
 
- variable "deletion_protection" {
-    description = "Whether to enable deletion protection"
-    type        = bool
-    default     = true
+variable "deletion_protection" {
+  description = "Whether to enable deletion protection"
+  type        = bool
+  default     = true
 }
