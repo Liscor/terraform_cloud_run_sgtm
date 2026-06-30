@@ -248,3 +248,43 @@ resource "google_compute_backend_service" "mig" {
     capacity_scaler       = 1.0
   }
 }
+
+# Optional: periodically rolling-restart the primary MIG so instances re-pull
+# the :stable image (mirrors the Cloud Run daily update cadence). Off by default.
+resource "google_cloud_scheduler_job" "mig_refresh" {
+  count       = var.use_mig && var.mig_scheduled_refresh ? 1 : 0
+  name        = "${var.name}-mig-refresh"
+  description = "Rolling-restart the SGTM primary MIG to re-pull the latest image."
+  region      = var.region
+  schedule    = var.update_interval
+  time_zone   = "Europe/Berlin"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://compute.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/instanceGroupManagers/${google_compute_region_instance_group_manager.sgtm_primary[0].name}/applyUpdatesToInstances"
+    body = base64encode(jsonencode({
+      allInstances                = true
+      mostDisruptiveAllowedAction = "REPLACE"
+    }))
+
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oauth_token {
+      service_account_email = google_service_account.sgtm_service_account.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [google_project_service.cloud_scheduler]
+}
+
+# The SA needs MIG-update rights to trigger the scheduled refresh. Granted only
+# when the optional refresh is enabled (broad role; see README).
+resource "google_project_iam_member" "mig_refresh_instance_admin" {
+  count   = var.use_mig && var.mig_scheduled_refresh ? 1 : 0
+  project = var.project_id
+  role    = "roles/compute.instanceAdmin.v1"
+  member  = "serviceAccount:${google_service_account.sgtm_service_account.email}"
+}
