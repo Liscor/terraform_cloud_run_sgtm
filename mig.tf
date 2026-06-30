@@ -56,3 +56,85 @@ resource "google_compute_health_check" "mig_autoheal" {
     port         = 8080
   }
 }
+
+# Instance template shared by both MIGs (provisioning model differs per MIG,
+# so each MIG references a per-provisioning template).
+locals {
+  mig_cloud_init = var.use_mig ? templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
+    image              = "gcr.io/cloud-tagging-10302018/gtm-cloud-image:stable"
+    container_config   = var.container_config
+    project_id         = var.project_id
+    preview_server_url = google_cloud_run_v2_service.gtm_preview.uri
+  }) : ""
+}
+
+resource "google_compute_instance_template" "sgtm_primary" {
+  count        = var.use_mig ? 1 : 0
+  name_prefix  = "${var.name}-sgtm-primary-"
+  machine_type = var.mig_machine_type
+  tags         = ["sgtm-mig"]
+
+  disk {
+    source_image = data.google_compute_image.cos[0].self_link
+    auto_delete  = true
+    boot         = true
+  }
+
+  network_interface {
+    network    = var.mig_network
+    subnetwork = var.mig_subnetwork
+    # No access_config block => no external IP. Traffic arrives via the LB.
+  }
+
+  service_account {
+    email  = google_service_account.sgtm_service_account.email
+    scopes = ["cloud-platform"]
+  }
+
+  metadata = {
+    "user-data"              = local.mig_cloud_init
+    "google-logging-enabled" = "true"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_compute_instance_template" "sgtm_overflow" {
+  count        = var.use_mig ? 1 : 0
+  name_prefix  = "${var.name}-sgtm-overflow-"
+  machine_type = var.mig_machine_type
+  tags         = ["sgtm-mig"]
+
+  scheduling {
+    provisioning_model = var.overflow_spot ? "SPOT" : "STANDARD"
+    preemptible        = var.overflow_spot
+    automatic_restart  = var.overflow_spot ? false : true
+  }
+
+  disk {
+    source_image = data.google_compute_image.cos[0].self_link
+    auto_delete  = true
+    boot         = true
+  }
+
+  network_interface {
+    network    = var.mig_network
+    subnetwork = var.mig_subnetwork
+  }
+
+  service_account {
+    email  = google_service_account.sgtm_service_account.email
+    scopes = ["cloud-platform"]
+  }
+
+  metadata = {
+    "user-data"              = local.mig_cloud_init
+    "google-logging-enabled" = "true"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
