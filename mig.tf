@@ -138,3 +138,81 @@ resource "google_compute_instance_template" "sgtm_overflow" {
     create_before_destroy = true
   }
 }
+
+# Primary regional MIG: fixed size, on-demand, sized to the CUD baseline.
+resource "google_compute_region_instance_group_manager" "sgtm_primary" {
+  count              = var.use_mig ? 1 : 0
+  name               = "${var.name}-sgtm-primary"
+  region             = var.region
+  base_instance_name = "${var.name}-sgtm-primary"
+  target_size        = var.mig_primary_size
+
+  version {
+    instance_template = google_compute_instance_template.sgtm_primary[0].self_link
+  }
+
+  named_port {
+    name = "http"
+    port = 8080
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.mig_autoheal[0].id
+    initial_delay_sec = 300
+  }
+
+  update_policy {
+    type                         = "PROACTIVE"
+    minimal_action               = "REPLACE"
+    instance_redistribution_type = "PROACTIVE"
+    max_surge_fixed              = 3
+    max_unavailable_fixed        = 0
+  }
+}
+
+# Overflow regional MIG: Spot by default, autoscaled, min=1 (warm spill target).
+resource "google_compute_region_instance_group_manager" "sgtm_overflow" {
+  count              = var.use_mig ? 1 : 0
+  name               = "${var.name}-sgtm-overflow"
+  region             = var.region
+  base_instance_name = "${var.name}-sgtm-overflow"
+
+  version {
+    instance_template = google_compute_instance_template.sgtm_overflow[0].self_link
+  }
+
+  named_port {
+    name = "http"
+    port = 8080
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.mig_autoheal[0].id
+    initial_delay_sec = 300
+  }
+
+  update_policy {
+    type                         = "PROACTIVE"
+    minimal_action               = "REPLACE"
+    instance_redistribution_type = "PROACTIVE"
+    max_surge_fixed              = 3
+    max_unavailable_fixed        = 0
+  }
+}
+
+resource "google_compute_region_autoscaler" "sgtm_overflow" {
+  count  = var.use_mig ? 1 : 0
+  name   = "${var.name}-sgtm-overflow-autoscaler"
+  region = var.region
+  target = google_compute_region_instance_group_manager.sgtm_overflow[0].id
+
+  autoscaling_policy {
+    min_replicas    = 1
+    max_replicas    = var.mig_overflow_max
+    cooldown_period = 180
+
+    load_balancing_utilization {
+      target = 0.8
+    }
+  }
+}
