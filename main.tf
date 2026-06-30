@@ -129,7 +129,12 @@ resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
   }
 }
 
-# URL Map
+# URL Map. Real SGTM traffic matches the host_rule and flows through the
+# "scripts" path_matcher: when use_mig is on, its default route splits weighted
+# between the MIG backend and the Cloud Run backend; the /gtm.js and /gtag/*
+# script paths always stay on the CDN-backed Cloud Run scripts backend. The
+# top-level default_service only handles non-matching hosts (direct-IP /
+# unknown-Host requests, which Cloud Armor denies) and stays on Cloud Run.
 resource "google_compute_url_map" "default" {
   count           = local.enable_lb_stack ? 1 : 0
   name            = "${var.name}-urlmap"
@@ -142,24 +147,39 @@ resource "google_compute_url_map" "default" {
 
   path_matcher {
     name            = "scripts"
-    default_service = local.backend_default_service
+    default_service = var.use_mig ? null : local.backend_default_service
+
+    dynamic "default_route_action" {
+      for_each = var.use_mig ? [1] : []
+      content {
+        weighted_backend_services {
+          backend_service = google_compute_backend_service.mig[0].id
+          weight          = var.mig_traffic_weight
+        }
+        weighted_backend_services {
+          backend_service = local.backend_default_service
+          weight          = 100 - var.mig_traffic_weight
+        }
+      }
+    }
 
     path_rule {
       paths   = ["/gtm.js", "/gtag/*"]
-      service = google_compute_backend_service.scripts[count.index].id
+      service = google_compute_backend_service.scripts[0].id
     }
   }
 }
 
 # Backend for script serving (with CDN)
 resource "google_compute_backend_service" "scripts" {
-  count           = local.enable_lb_stack ? 1 : 0
-  name            = "${var.name}-script-serving-backend"
-  enable_cdn      = true
-  protocol        = "HTTPS"
-  port_name       = "http"
-  timeout_sec     = 30
-  security_policy = google_compute_security_policy.policy[count.index].id
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-script-serving-backend"
+  load_balancing_scheme = local.lb_scheme
+  enable_cdn            = true
+  protocol              = "HTTPS"
+  port_name             = "http"
+  timeout_sec           = 30
+  security_policy       = google_compute_security_policy.policy[count.index].id
 
   cdn_policy {
     signed_url_cache_max_age_sec = 7200
@@ -179,12 +199,13 @@ resource "google_compute_backend_service" "scripts" {
 
 # Backend default
 resource "google_compute_backend_service" "default" {
-  count           = local.enable_lb_stack ? 1 : 0
-  name            = "${var.name}-backend"
-  protocol        = "HTTP"
-  port_name       = "http"
-  timeout_sec     = 30
-  security_policy = google_compute_security_policy.policy[count.index].id
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-backend"
+  load_balancing_scheme = local.lb_scheme
+  protocol              = "HTTP"
+  port_name             = "http"
+  timeout_sec           = 30
+  security_policy       = google_compute_security_policy.policy[count.index].id
 
   backend {
     group = local.cloudrun_neg
@@ -239,11 +260,12 @@ resource "google_compute_global_address" "default" {
 
 # Load Balancer Forwarding Rule
 resource "google_compute_global_forwarding_rule" "default" {
-  count      = local.enable_lb_stack ? 1 : 0
-  name       = "${var.name}-lb"
-  target     = local.load_balancer_target
-  port_range = "443"
-  ip_address = local.ip_address
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-lb"
+  load_balancing_scheme = local.lb_scheme
+  target                = local.load_balancer_target
+  port_range            = "443"
+  ip_address            = local.ip_address
 }
 
 # Cloud Scheduler API
