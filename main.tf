@@ -14,11 +14,35 @@ locals {
   ssl_certificate             = one(google_compute_managed_ssl_certificate.default[*].id)
   load_balancer_target        = one(google_compute_target_https_proxy.default[*].id)
   production_service_hostname = replace(google_cloud_run_v2_service.gtm_production.uri, "https://", "")
+
+  # When the MIG backend is enabled the LB must be the global external
+  # Application Load Balancer (EXTERNAL_MANAGED) because backend `preference`
+  # (fill-then-spill) is unsupported on the classic EXTERNAL scheme.
+  lb_scheme = var.use_mig ? "EXTERNAL_MANAGED" : "EXTERNAL"
+
+  # The compute API and LB are needed when either the LB or the MIG is enabled.
+  enable_lb_stack = var.use_load_balancer || var.use_mig
 }
 
 provider "google" {
   project = var.project_id
   region  = var.region
+}
+
+# Guard rails for the MIG feature: enforce LB + required rate when use_mig is on.
+resource "terraform_data" "mig_preconditions" {
+  count = var.use_mig ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.use_load_balancer
+      error_message = "use_mig = true requires use_load_balancer = true (the MIG is served via the load balancer)."
+    }
+    precondition {
+      condition     = var.max_rate_per_instance != null && var.max_rate_per_instance > 0
+      error_message = "use_mig = true requires max_rate_per_instance to be set (> 0). Pin it via a load test."
+    }
+  }
 }
 
 # Enable required Google Cloud APIs
