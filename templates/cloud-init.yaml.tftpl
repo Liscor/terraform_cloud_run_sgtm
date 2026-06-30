@@ -1,0 +1,78 @@
+#cloud-config
+# NOTE: sgtm.service --health-cmd uses `wget`; on first boot verify `docker inspect --format='{{.State.Health.Status}}' gtm` reaches "healthy" (not stuck/looping). If the SGTM image lacks wget, swap the health-cmd for a probe the image actually ships.
+
+write_files:
+  - path: /etc/systemd/system/sgtm.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=SGTM container
+      Wants=gcr-online.target
+      After=gcr-online.target
+
+      [Service]
+      Environment="HOME=/home/sgtm"
+      ExecStartPre=/usr/bin/docker pull ${image}
+      ExecStart=/usr/bin/docker run --rm --name=gtm \
+        -p 8080:8080 \
+        --health-cmd='wget -qO- http://localhost:8080/healthy || exit 1' \
+        --health-interval=10s \
+        --health-timeout=4s \
+        --health-retries=3 \
+        -e CONTAINER_CONFIG='${container_config}' \
+        -e GOOGLE_CLOUD_PROJECT='${project_id}' \
+        -e PREVIEW_SERVER_URL='${preview_server_url}' \
+        ${image}
+      ExecStop=/usr/bin/docker stop gtm
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /opt/sgtm/watchdog.sh
+    permissions: "0755"
+    owner: root
+    content: |
+      #!/bin/bash
+      # Restart the SGTM container if Docker reports it unhealthy.
+      status=$(/usr/bin/docker inspect --format='{{.State.Health.Status}}' gtm 2>/dev/null)
+      if [ "$status" = "unhealthy" ]; then
+        echo "$(date): Container gtm is unhealthy. Restarting." >> /var/log/sgtm-watchdog.log
+        /usr/bin/docker restart --time 10 gtm
+        echo "$(date): Container gtm has been restarted." >> /var/log/sgtm-watchdog.log
+      fi
+
+  - path: /etc/systemd/system/sgtm-watchdog.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=SGTM health watchdog (restart unhealthy container)
+      After=sgtm.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/sgtm/watchdog.sh
+
+  - path: /etc/systemd/system/sgtm-watchdog.timer
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=Run SGTM watchdog every 30s
+
+      [Timer]
+      OnBootSec=60s
+      OnUnitActiveSec=30s
+      AccuracySec=5s
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - mkdir -p /home/sgtm
+  - systemctl daemon-reload
+  - systemctl enable --now sgtm.service
+  - systemctl enable --now sgtm-watchdog.timer
