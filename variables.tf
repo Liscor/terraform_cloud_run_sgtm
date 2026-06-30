@@ -114,3 +114,72 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# MIG / VM backend (all default to "no change" so existing deploys are untouched)
+# ---------------------------------------------------------------------------
+
+variable "use_mig" {
+  description = "Master switch: deploy the GCE MIG/VM backend behind the load balancer. Requires the load balancer to be enabled."
+  type        = bool
+  default     = false
+}
+
+variable "mig_traffic_weight" {
+  description = "Percent of production traffic (0-100) routed to the MIG backend. The remainder goes to the Cloud Run fallback. 0 = all Cloud Run (test phase)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.mig_traffic_weight >= 0 && var.mig_traffic_weight <= 100
+    error_message = "mig_traffic_weight must be between 0 and 100."
+  }
+}
+
+variable "mig_machine_type" {
+  description = "Machine type for the MIG VMs."
+  type        = string
+  default     = "e2-standard-2"
+}
+
+variable "mig_primary_size" {
+  description = "Fixed instance count for the on-demand primary MIG (size to match committed-use baseline vCPUs)."
+  type        = number
+  default     = 1
+}
+
+variable "max_rate_per_instance" {
+  description = "Requests/sec per instance that defines a backend as 'full' (LB RATE balancing). Pin this via a load test. Required when use_mig is true."
+  type        = number
+  default     = null
+}
+
+variable "mig_overflow_max" {
+  description = "Maximum number of Spot overflow instances the autoscaler may create."
+  type        = number
+  default     = 3
+}
+
+variable "overflow_spot" {
+  description = "true = Spot overflow VMs (max savings). false = on-demand overflow (zero data loss)."
+  type        = bool
+  default     = true
+}
+
+variable "mig_network" {
+  description = "VPC network for the MIG VMs."
+  type        = string
+  default     = "default"
+}
+
+variable "mig_subnetwork" {
+  description = "Subnetwork for the MIG VMs."
+  type        = string
+  default     = "default"
+}
+
+variable "mig_scheduled_refresh" {
+  description = "If true, a Cloud Scheduler job periodically rolling-restarts the MIG so instances re-pull the :stable image."
+  type        = bool
+  default     = false
+}
