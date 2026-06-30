@@ -37,3 +37,17 @@ use_load_balancer = false
 
 # Deletion protection
 deletion_protection = false
+
+# ---------------------------------------------------------------------------
+# MIG / VM backend (optional, cost optimization). All off by default.
+# ---------------------------------------------------------------------------
+# use_mig               = true            # deploy the MIG backend (requires use_load_balancer = true)
+# mig_traffic_weight    = 0               # 0 = all Cloud Run (test phase); ramp 10 -> 50 -> 100
+# mig_machine_type      = "e2-standard-2"
+# mig_primary_size      = 1               # set to match committed-use baseline vCPUs
+# max_rate_per_instance = 50              # REQUIRED when use_mig; pin via load test
+# mig_overflow_max      = 3
+# overflow_spot         = true            # false = on-demand overflow (zero data loss)
+# mig_network           = "default"
+# mig_subnetwork        = "default"
+# mig_scheduled_refresh = false           # enabling also grants the SA roles/compute.instanceAdmin.v1
