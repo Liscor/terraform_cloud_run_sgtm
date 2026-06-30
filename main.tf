@@ -47,13 +47,13 @@ resource "terraform_data" "mig_preconditions" {
 
 # Enable required Google Cloud APIs
 resource "google_project_service" "compute_engine_api" {
-  count              = var.use_load_balancer ? 1 : 0
+  count              = local.enable_lb_stack ? 1 : 0
   service            = "compute.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "dns" {
-  count              = var.use_load_balancer ? 1 : 0
+  count              = local.enable_lb_stack ? 1 : 0
   project            = var.project_id
   service            = "dns.googleapis.com"
   disable_on_destroy = false
@@ -73,7 +73,7 @@ resource "google_project_service" "iam_api" {
 
 # Set networking tier
 resource "google_compute_project_default_network_tier" "default" {
-  count        = var.use_load_balancer ? 1 : 0
+  count        = local.enable_lb_stack ? 1 : 0
   network_tier = "PREMIUM"
   depends_on   = [google_project_service.compute_engine_api]
 }
@@ -86,7 +86,7 @@ resource "google_project_service" "run_api" {
 
 # Health Check
 resource "google_compute_health_check" "cloud_run_health_check" {
-  count               = var.use_load_balancer ? 1 : 0
+  count               = local.enable_lb_stack ? 1 : 0
   name                = "cloud-run-health-check"
   check_interval_sec  = 5
   timeout_sec         = 5
@@ -101,7 +101,7 @@ resource "google_compute_health_check" "cloud_run_health_check" {
 
 # SSL Certificate
 resource "google_compute_managed_ssl_certificate" "default" {
-  count = var.use_load_balancer ? 1 : 0
+  count = local.enable_lb_stack ? 1 : 0
   name  = "${var.name}-cert"
 
   lifecycle {
@@ -118,7 +118,7 @@ resource "google_compute_managed_ssl_certificate" "default" {
 
 # Network Endpoint Group
 resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
-  count                 = var.use_load_balancer ? 1 : 0
+  count                 = local.enable_lb_stack ? 1 : 0
   provider              = google-beta
   name                  = "cloud-run-prod-backend"
   network_endpoint_type = "SERVERLESS"
@@ -131,7 +131,7 @@ resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
 
 # URL Map
 resource "google_compute_url_map" "default" {
-  count           = var.use_load_balancer ? 1 : 0
+  count           = local.enable_lb_stack ? 1 : 0
   name            = "${var.name}-urlmap"
   default_service = local.backend_default_service
 
@@ -153,7 +153,7 @@ resource "google_compute_url_map" "default" {
 
 # Backend for script serving (with CDN)
 resource "google_compute_backend_service" "scripts" {
-  count           = var.use_load_balancer ? 1 : 0
+  count           = local.enable_lb_stack ? 1 : 0
   name            = "${var.name}-script-serving-backend"
   enable_cdn      = true
   protocol        = "HTTPS"
@@ -179,7 +179,7 @@ resource "google_compute_backend_service" "scripts" {
 
 # Backend default
 resource "google_compute_backend_service" "default" {
-  count           = var.use_load_balancer ? 1 : 0
+  count           = local.enable_lb_stack ? 1 : 0
   name            = "${var.name}-backend"
   protocol        = "HTTP"
   port_name       = "http"
@@ -193,7 +193,7 @@ resource "google_compute_backend_service" "default" {
 
 # Cloud Armor Security Policy
 resource "google_compute_security_policy" "policy" {
-  count       = var.use_load_balancer ? 1 : 0
+  count       = local.enable_lb_stack ? 1 : 0
   name        = "${var.name}-cloud-armor-policy"
   description = "Cloud Armor policy for SGTM"
 
@@ -225,7 +225,7 @@ resource "google_compute_security_policy" "policy" {
 
 # HTTPS Proxy
 resource "google_compute_target_https_proxy" "default" {
-  count            = var.use_load_balancer ? 1 : 0
+  count            = local.enable_lb_stack ? 1 : 0
   name             = "${var.name}-https-proxy"
   url_map          = local.url_map
   ssl_certificates = [local.ssl_certificate]
@@ -233,13 +233,13 @@ resource "google_compute_target_https_proxy" "default" {
 
 # Load Balancer IP Address
 resource "google_compute_global_address" "default" {
-  count = var.use_load_balancer ? 1 : 0
+  count = local.enable_lb_stack ? 1 : 0
   name  = "${var.name}-address"
 }
 
 # Load Balancer Forwarding Rule
 resource "google_compute_global_forwarding_rule" "default" {
-  count      = var.use_load_balancer ? 1 : 0
+  count      = local.enable_lb_stack ? 1 : 0
   name       = "${var.name}-lb"
   target     = local.load_balancer_target
   port_range = "443"
@@ -297,7 +297,9 @@ resource "google_project_iam_member" "sgtm_add_roles" {
     "roles/run.invoker",
     "roles/cloudfunctions.invoker",
     "roles/cloudfunctions.serviceAgent",
-    "roles/artifactregistry.reader"
+    "roles/artifactregistry.reader",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter"
   ])
   project = var.project_id
   role    = each.value
