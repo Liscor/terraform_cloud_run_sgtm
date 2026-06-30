@@ -216,3 +216,35 @@ resource "google_compute_region_autoscaler" "sgtm_overflow" {
     }
   }
 }
+
+# Backend service for the MIG tier (EXTERNAL_MANAGED, required for `preference`).
+# Primary = PREFERRED (filled first); overflow = DEFAULT (spill target).
+resource "google_compute_backend_service" "mig" {
+  count                 = var.use_mig ? 1 : 0
+  name                  = "${var.name}-mig-backend"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "HTTP"
+  port_name             = "http"
+  timeout_sec           = 30
+  security_policy       = google_compute_security_policy.policy[0].id
+  health_checks         = [google_compute_health_check.mig_lb[0].id]
+
+  # Drain in-flight requests for at least Spot's 30s preemption notice.
+  connection_draining_timeout_sec = 60
+
+  backend {
+    group                 = google_compute_region_instance_group_manager.sgtm_primary[0].instance_group
+    balancing_mode        = "RATE"
+    max_rate_per_instance = var.max_rate_per_instance
+    preference            = "PREFERRED"
+    capacity_scaler       = 1.0
+  }
+
+  backend {
+    group                 = google_compute_region_instance_group_manager.sgtm_overflow[0].instance_group
+    balancing_mode        = "RATE"
+    max_rate_per_instance = var.max_rate_per_instance
+    preference            = "DEFAULT"
+    capacity_scaler       = 1.0
+  }
+}
