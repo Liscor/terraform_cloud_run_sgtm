@@ -9,6 +9,33 @@ data "google_compute_image" "cos" {
   project = "cos-cloud"
 }
 
+# The MIG VMs have no external IP (traffic arrives via the LB), so they need
+# Cloud NAT for outbound internet: the SGTM container pulls its image from gcr.io
+# on boot and makes outbound requests to tag vendors at runtime. Without egress
+# the container never starts and every VM fails its health check.
+resource "google_compute_router" "mig_nat" {
+  count   = var.use_mig ? 1 : 0
+  name    = "${var.name}-mig-router"
+  region  = var.region
+  network = var.mig_network
+
+  depends_on = [google_project_service.compute_engine_api]
+}
+
+resource "google_compute_router_nat" "mig_nat" {
+  count                              = var.use_mig ? 1 : 0
+  name                               = "${var.name}-mig-nat"
+  router                             = google_compute_router.mig_nat[0].name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = false
+    filter = "ERRORS_ONLY"
+  }
+}
+
 # Allow Google health-check / LB source ranges to reach the SGTM port.
 resource "google_compute_firewall" "mig_health_checks" {
   count   = var.use_mig ? 1 : 0
@@ -139,11 +166,14 @@ resource "google_compute_instance_template" "sgtm_overflow" {
   }
 }
 
-# Primary regional MIG: fixed size, on-demand, sized to the CUD baseline.
-resource "google_compute_region_instance_group_manager" "sgtm_primary" {
+# Primary zonal MIG: fixed size, on-demand, sized to the CUD baseline.
+# Zonal (not regional) so the LB backend supports fill-then-spill `preference`,
+# which GCP rejects on regional instance groups. Trade-off: single-zone, so a
+# zone outage takes the primary tier down (autohealing can't recreate elsewhere).
+resource "google_compute_instance_group_manager" "sgtm_primary" {
   count              = var.use_mig ? 1 : 0
   name               = "${var.name}-sgtm-primary"
-  region             = var.region
+  zone               = var.mig_zone
   base_instance_name = "${var.name}-sgtm-primary"
   target_size        = var.mig_primary_size
 
@@ -162,19 +192,18 @@ resource "google_compute_region_instance_group_manager" "sgtm_primary" {
   }
 
   update_policy {
-    type                         = "PROACTIVE"
-    minimal_action               = "REPLACE"
-    instance_redistribution_type = "PROACTIVE"
-    max_surge_fixed              = 3
-    max_unavailable_fixed        = 0
+    type                  = "PROACTIVE"
+    minimal_action        = "REPLACE"
+    max_surge_fixed       = 3
+    max_unavailable_fixed = 0
   }
 }
 
-# Overflow regional MIG: Spot by default, autoscaled, min=1 (warm spill target).
-resource "google_compute_region_instance_group_manager" "sgtm_overflow" {
+# Overflow zonal MIG: Spot by default, autoscaled, min=1 (warm spill target).
+resource "google_compute_instance_group_manager" "sgtm_overflow" {
   count              = var.use_mig ? 1 : 0
   name               = "${var.name}-sgtm-overflow"
-  region             = var.region
+  zone               = var.mig_zone
   base_instance_name = "${var.name}-sgtm-overflow"
 
   version {
@@ -192,19 +221,18 @@ resource "google_compute_region_instance_group_manager" "sgtm_overflow" {
   }
 
   update_policy {
-    type                         = "PROACTIVE"
-    minimal_action               = "REPLACE"
-    instance_redistribution_type = "PROACTIVE"
-    max_surge_fixed              = 3
-    max_unavailable_fixed        = 0
+    type                  = "PROACTIVE"
+    minimal_action        = "REPLACE"
+    max_surge_fixed       = 3
+    max_unavailable_fixed = 0
   }
 }
 
-resource "google_compute_region_autoscaler" "sgtm_overflow" {
+resource "google_compute_autoscaler" "sgtm_overflow" {
   count  = var.use_mig ? 1 : 0
   name   = "${var.name}-sgtm-overflow-autoscaler"
-  region = var.region
-  target = google_compute_region_instance_group_manager.sgtm_overflow[0].id
+  zone   = var.mig_zone
+  target = google_compute_instance_group_manager.sgtm_overflow[0].id
 
   autoscaling_policy {
     min_replicas    = 1
@@ -233,7 +261,7 @@ resource "google_compute_backend_service" "mig" {
   connection_draining_timeout_sec = 60
 
   backend {
-    group                 = google_compute_region_instance_group_manager.sgtm_primary[0].instance_group
+    group                 = google_compute_instance_group_manager.sgtm_primary[0].instance_group
     balancing_mode        = "RATE"
     max_rate_per_instance = var.max_rate_per_instance
     preference            = "PREFERRED"
@@ -241,7 +269,7 @@ resource "google_compute_backend_service" "mig" {
   }
 
   backend {
-    group                 = google_compute_region_instance_group_manager.sgtm_overflow[0].instance_group
+    group                 = google_compute_instance_group_manager.sgtm_overflow[0].instance_group
     balancing_mode        = "RATE"
     max_rate_per_instance = var.max_rate_per_instance
     preference            = "DEFAULT"
@@ -261,7 +289,7 @@ resource "google_cloud_scheduler_job" "mig_refresh" {
 
   http_target {
     http_method = "POST"
-    uri         = "https://compute.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/instanceGroupManagers/${google_compute_region_instance_group_manager.sgtm_primary[0].name}/applyUpdatesToInstances"
+    uri         = "https://compute.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.mig_zone}/instanceGroupManagers/${google_compute_instance_group_manager.sgtm_primary[0].name}/applyUpdatesToInstances"
     body = base64encode(jsonencode({
       allInstances                = true
       mostDisruptiveAllowedAction = "REPLACE"

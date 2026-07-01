@@ -178,6 +178,12 @@ variable "mig_subnetwork" {
   default     = "default"
 }
 
+variable "mig_zone" {
+  description = "Zone for the MIG VMs. MIGs are zonal (not regional) so the LB backend can use fill-then-spill `preference`, which GCP does not support on regional instance groups. Should be a zone within var.region."
+  type        = string
+  default     = "europe-west3-c"
+}
+
 variable "mig_scheduled_refresh" {
   description = "If true, a Cloud Scheduler job periodically rolling-restarts the MIG so instances re-pull the :stable image."
   type        = bool
