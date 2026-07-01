@@ -31,7 +31,7 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
-  - path: /opt/sgtm/watchdog.sh
+  - path: /etc/sgtm/watchdog.sh
     permissions: "0755"
     owner: root
     content: |
@@ -54,7 +54,7 @@ write_files:
 
       [Service]
       Type=oneshot
-      ExecStart=/opt/sgtm/watchdog.sh
+      ExecStart=/bin/bash /etc/sgtm/watchdog.sh
 
   - path: /etc/systemd/system/sgtm-watchdog.timer
     permissions: "0644"
