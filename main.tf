@@ -29,6 +29,11 @@ provider "google" {
   region  = var.region
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
 # Guard rails for the MIG feature: enforce LB + required rate when use_mig is on.
 resource "terraform_data" "mig_preconditions" {
   count = var.use_mig ? 1 : 0
