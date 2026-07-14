@@ -1,0 +1,145 @@
+#cloud-config
+# N sGTM containers (one per core) on host ports, behind an on-VM nginx fan-out on :8080.
+# The gtm-cloud-image is distroless, so health is probed from the COS host (curl), not an
+# in-container health check. nginx runs as a container on host networking.
+
+write_files:
+  - path: /etc/systemd/system/sgtm@.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=SGTM container on host port %i
+      Wants=gcr-online.target
+      After=gcr-online.target
+
+      [Service]
+      Environment="HOME=/home/sgtm"
+      ExecStartPre=/usr/bin/docker pull ${image}
+      ExecStart=/usr/bin/docker run --rm --name=gtm-%i \
+        -p 127.0.0.1:%i:8080 \
+        -e CONTAINER_CONFIG='${container_config}' \
+        -e GOOGLE_CLOUD_PROJECT='${project_id}' \
+        -e PREVIEW_SERVER_URL='${preview_server_url}' \
+        ${image}
+      ExecStop=/usr/bin/docker stop gtm-%i
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/sgtm/nginx.conf
+    permissions: "0644"
+    owner: root
+    content: |
+      worker_processes auto;
+      events { worker_connections 2048; }
+      http {
+        access_log off;
+        upstream sgtm {
+      %{ for p in ports ~}
+          server 127.0.0.1:${p} max_fails=2 fail_timeout=5s;
+      %{ endfor ~}
+        }
+        server {
+          listen 8080;
+          client_max_body_size 10m;
+          proxy_http_version 1.1;
+          proxy_connect_timeout 2s;
+          proxy_read_timeout 30s;
+          location / {
+            proxy_pass http://sgtm;
+            proxy_set_header Host $host;
+          }
+          location /healthy {
+            proxy_pass http://sgtm/healthy;
+            proxy_set_header Host $host;
+          }
+        }
+      }
+
+  - path: /etc/systemd/system/sgtm-nginx.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=SGTM nginx fan-out proxy (:8080 -> local containers)
+      Wants=gcr-online.target
+      After=gcr-online.target
+
+      [Service]
+      ExecStartPre=/usr/bin/docker pull mirror.gcr.io/library/nginx:1.27-alpine
+      ExecStart=/usr/bin/docker run --rm --name=sgtm-nginx --network host \
+        -v /etc/sgtm/nginx.conf:/etc/nginx/nginx.conf:ro \
+        mirror.gcr.io/library/nginx:1.27-alpine
+      ExecStop=/usr/bin/docker stop sgtm-nginx
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/sgtm/watchdog.sh
+    permissions: "0755"
+    owner: root
+    content: |
+      #!/bin/bash
+      # Restart individual unhealthy sGTM containers; restart nginx if the front is down.
+      for port in ${join(" ", ports)}; do
+        ok=0
+        for i in 1 2 3; do
+          if curl -sf -o /dev/null --max-time 5 http://localhost:$port/healthy; then ok=1; break; fi
+          sleep 2
+        done
+        if [ "$ok" = "0" ]; then
+          echo "$(date): container gtm-$port failed /healthy 3x. Restarting." >> /var/log/sgtm-watchdog.log
+          systemctl restart sgtm@$port.service
+        fi
+      done
+      if ! curl -sf -o /dev/null --max-time 5 http://localhost:8080/healthy; then
+        echo "$(date): nginx front :8080 unhealthy. Restarting." >> /var/log/sgtm-watchdog.log
+        systemctl restart sgtm-nginx.service
+      fi
+
+  - path: /etc/systemd/system/sgtm-watchdog.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=SGTM health watchdog (per-container + nginx)
+      After=sgtm-nginx.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash /etc/sgtm/watchdog.sh
+
+  - path: /etc/systemd/system/sgtm-watchdog.timer
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=Run SGTM watchdog every 30s
+
+      [Timer]
+      OnBootSec=90s
+      OnUnitActiveSec=30s
+      AccuracySec=5s
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  # Open the host firewall for :8080. COS's INPUT policy is DROP, and nginx runs with
+  # --network host (a host-local listener, no docker -p rule), so LB + health-check
+  # traffic to :8080 hits INPUT and is dropped without this. Scoped to the GCP LB /
+  # health-check ranges (same ranges the VPC firewall already permits).
+  - iptables -w -A INPUT -p tcp --dport 8080 -s 35.191.0.0/16 -j ACCEPT
+  - iptables -w -A INPUT -p tcp --dport 8080 -s 130.211.0.0/22 -j ACCEPT
+  - mkdir -p /home/sgtm
+  - systemctl daemon-reload
+%{ for p in ports ~}
+  - systemctl enable --now sgtm@${p}.service
+%{ endfor ~}
+  - systemctl enable --now sgtm-nginx.service
+  - systemctl enable --now sgtm-watchdog.timer

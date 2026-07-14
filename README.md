@@ -10,6 +10,52 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 - Optional basic load balancer setup enabled via setting use_load_balancer variable to true.
 - The Load balancer contains the Geolocation headers described [here](https://developers.google.com/tag-platform/tag-manager/server-side/enable-region-specific-settings) and the additonal ones neccesary for sending geolocation data to GA4 described [here](https://www.simoahava.com/gtm-tips/utilize-app-engine-headers-server-side-tagging/) All possible headers are listed [here](https://cloud.google.com/load-balancing/docs/https/custom-headers)
 
+## MIG / VM backend (cost optimization)
+
+Optionally serve production traffic from a regional GCE Managed Instance Group of
+VMs running the SGTM container, instead of Cloud Run, to cut compute cost. Cloud
+Run is kept as a weight-controlled fallback.
+
+- Enable with `use_mig = true` (requires `use_load_balancer = true`).
+- Traffic is split via `mig_traffic_weight` (0-100). Start at `0` (all Cloud Run),
+  load-test one instance to pin `max_rate_per_instance`, then ramp the weight.
+  Drop it back to `0` for instant fail-back during MIG maintenance.
+- **Dense packing:** each VM runs `mig_containers_per_vm` SGTM containers (one per
+  serving core; one core is reserved for the OS and an in-VM nginx that fans out
+  to the containers). Fewer, bigger VMs cost less per request than many small ones.
+- **Regional & multi-zone:** the MIG spreads VMs across all zones in `region`, so a
+  single-zone outage does not take the tier down (autohealing recreates elsewhere).
+- **Autoscaling:** scales on whichever is higher of request rate (vs
+  `max_rate_per_instance`) and CPU, between `mig_min_replicas` and
+  `mig_max_replicas`. A daily schedule pre-warms `mig_prewarm_min_replicas` VMs
+  before the morning peak (`mig_prewarm_cron` / `mig_prewarm_duration_sec`, in
+  `mig_time_zone`) so the ramp never waits on VM boot time.
+- Self-healing: each VM runs the containers under systemd plus a per-container
+  watchdog that restarts one if it reports unhealthy; MIG autohealing recreates a
+  VM that stays unhealthy.
+
+### Committed Use Discounts (CUD)
+
+This module does **not** purchase a CUD. Resource-based CUDs apply automatically
+to matching running vCPUs in the region/family. Size `mig_min_replicas` and the
+machine type to match the vCPUs you commit to, and buy the commitment separately
+in the billing console.
+
+### Load balancer scheme migration
+
+Enabling `use_mig` builds the load balancer as the global external Application
+Load Balancer (`EXTERNAL_MANAGED`). On an existing classic-LB (`EXTERNAL`)
+deployment this **recreates** the LB resources: the reserved IP is preserved, but
+the managed SSL certificate re-provisions (allow ~15-60 min before HTTPS is
+healthy again).
+
+### Optional scheduled image refresh
+
+Setting `mig_scheduled_refresh = true` adds a Cloud Scheduler job that rolls the
+MIG on `update_interval` so instances re-pull the `:stable` image. This also
+grants the SGTM service account `roles/compute.instanceAdmin.v1` (needed to
+trigger the rolling update) — a broad role, enabled only when you opt in.
+
 ## Getting Started
 
 ### Quick Start

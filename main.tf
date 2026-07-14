@@ -14,6 +14,15 @@ locals {
   ssl_certificate             = one(google_compute_managed_ssl_certificate.default[*].id)
   load_balancer_target        = one(google_compute_target_https_proxy.default[*].id)
   production_service_hostname = replace(google_cloud_run_v2_service.gtm_production.uri, "https://", "")
+
+  # When the MIG backend is enabled the LB must be the global external
+  # Application Load Balancer (EXTERNAL_MANAGED): the url-map splits traffic
+  # weighted between the MIG and Cloud Run (default_route_action /
+  # weighted_backend_services), which the classic EXTERNAL scheme does not support.
+  lb_scheme = var.use_mig ? "EXTERNAL_MANAGED" : "EXTERNAL"
+
+  # The compute API and LB are needed when either the LB or the MIG is enabled.
+  enable_lb_stack = var.use_load_balancer || var.use_mig
 }
 
 provider "google" {
@@ -21,15 +30,36 @@ provider "google" {
   region  = var.region
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
+# Guard rails for the MIG feature: enforce LB + required rate when use_mig is on.
+resource "terraform_data" "mig_preconditions" {
+  count = var.use_mig ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.use_load_balancer
+      error_message = "use_mig = true requires use_load_balancer = true (the MIG is served via the load balancer)."
+    }
+    precondition {
+      condition     = var.max_rate_per_instance != null && var.max_rate_per_instance > 0
+      error_message = "use_mig = true requires max_rate_per_instance to be set (> 0). Pin it via a load test."
+    }
+  }
+}
+
 # Enable required Google Cloud APIs
 resource "google_project_service" "compute_engine_api" {
-  count              = var.use_load_balancer ? 1 : 0
+  count              = local.enable_lb_stack ? 1 : 0
   service            = "compute.googleapis.com"
   disable_on_destroy = false
 }
 
 resource "google_project_service" "dns" {
-  count              = var.use_load_balancer ? 1 : 0
+  count              = local.enable_lb_stack ? 1 : 0
   project            = var.project_id
   service            = "dns.googleapis.com"
   disable_on_destroy = false
@@ -49,7 +79,7 @@ resource "google_project_service" "iam_api" {
 
 # Set networking tier
 resource "google_compute_project_default_network_tier" "default" {
-  count        = var.use_load_balancer ? 1 : 0
+  count        = local.enable_lb_stack ? 1 : 0
   network_tier = "PREMIUM"
   depends_on   = [google_project_service.compute_engine_api]
 }
@@ -62,7 +92,7 @@ resource "google_project_service" "run_api" {
 
 # Health Check
 resource "google_compute_health_check" "cloud_run_health_check" {
-  count               = var.use_load_balancer ? 1 : 0
+  count               = local.enable_lb_stack ? 1 : 0
   name                = "cloud-run-health-check"
   check_interval_sec  = 5
   timeout_sec         = 5
@@ -77,7 +107,7 @@ resource "google_compute_health_check" "cloud_run_health_check" {
 
 # SSL Certificate
 resource "google_compute_managed_ssl_certificate" "default" {
-  count = var.use_load_balancer ? 1 : 0
+  count = local.enable_lb_stack ? 1 : 0
   name  = "${var.name}-cert"
 
   lifecycle {
@@ -94,7 +124,7 @@ resource "google_compute_managed_ssl_certificate" "default" {
 
 # Network Endpoint Group
 resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
-  count                 = var.use_load_balancer ? 1 : 0
+  count                 = local.enable_lb_stack ? 1 : 0
   provider              = google-beta
   name                  = "cloud-run-prod-backend"
   network_endpoint_type = "SERVERLESS"
@@ -105,9 +135,14 @@ resource "google_compute_region_network_endpoint_group" "cloudrun_neg" {
   }
 }
 
-# URL Map
+# URL Map. Real SGTM traffic matches the host_rule and flows through the
+# "scripts" path_matcher: when use_mig is on, its default route splits weighted
+# between the MIG backend and the Cloud Run backend; the /gtm.js and /gtag/*
+# script paths always stay on the CDN-backed Cloud Run scripts backend. The
+# top-level default_service only handles non-matching hosts (direct-IP /
+# unknown-Host requests, which Cloud Armor denies) and stays on Cloud Run.
 resource "google_compute_url_map" "default" {
-  count           = var.use_load_balancer ? 1 : 0
+  count           = local.enable_lb_stack ? 1 : 0
   name            = "${var.name}-urlmap"
   default_service = local.backend_default_service
 
@@ -118,24 +153,39 @@ resource "google_compute_url_map" "default" {
 
   path_matcher {
     name            = "scripts"
-    default_service = local.backend_default_service
+    default_service = var.use_mig ? null : local.backend_default_service
+
+    dynamic "default_route_action" {
+      for_each = var.use_mig ? [1] : []
+      content {
+        weighted_backend_services {
+          backend_service = google_compute_backend_service.mig[0].id
+          weight          = var.mig_traffic_weight
+        }
+        weighted_backend_services {
+          backend_service = local.backend_default_service
+          weight          = 100 - var.mig_traffic_weight
+        }
+      }
+    }
 
     path_rule {
       paths   = ["/gtm.js", "/gtag/*"]
-      service = google_compute_backend_service.scripts[count.index].id
+      service = google_compute_backend_service.scripts[0].id
     }
   }
 }
 
 # Backend for script serving (with CDN)
 resource "google_compute_backend_service" "scripts" {
-  count           = var.use_load_balancer ? 1 : 0
-  name            = "${var.name}-script-serving-backend"
-  enable_cdn      = true
-  protocol        = "HTTPS"
-  port_name       = "http"
-  timeout_sec     = 30
-  security_policy = google_compute_security_policy.policy[count.index].id
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-script-serving-backend"
+  load_balancing_scheme = local.lb_scheme
+  enable_cdn            = true
+  protocol              = "HTTPS"
+  port_name             = "http"
+  timeout_sec           = 30
+  security_policy       = google_compute_security_policy.policy[count.index].id
 
   cdn_policy {
     signed_url_cache_max_age_sec = 7200
@@ -155,12 +205,13 @@ resource "google_compute_backend_service" "scripts" {
 
 # Backend default
 resource "google_compute_backend_service" "default" {
-  count           = var.use_load_balancer ? 1 : 0
-  name            = "${var.name}-backend"
-  protocol        = "HTTP"
-  port_name       = "http"
-  timeout_sec     = 30
-  security_policy = google_compute_security_policy.policy[count.index].id
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-backend"
+  load_balancing_scheme = local.lb_scheme
+  protocol              = "HTTP"
+  port_name             = "http"
+  timeout_sec           = 30
+  security_policy       = google_compute_security_policy.policy[count.index].id
 
   backend {
     group = local.cloudrun_neg
@@ -169,7 +220,7 @@ resource "google_compute_backend_service" "default" {
 
 # Cloud Armor Security Policy
 resource "google_compute_security_policy" "policy" {
-  count       = var.use_load_balancer ? 1 : 0
+  count       = local.enable_lb_stack ? 1 : 0
   name        = "${var.name}-cloud-armor-policy"
   description = "Cloud Armor policy for SGTM"
 
@@ -201,7 +252,7 @@ resource "google_compute_security_policy" "policy" {
 
 # HTTPS Proxy
 resource "google_compute_target_https_proxy" "default" {
-  count            = var.use_load_balancer ? 1 : 0
+  count            = local.enable_lb_stack ? 1 : 0
   name             = "${var.name}-https-proxy"
   url_map          = local.url_map
   ssl_certificates = [local.ssl_certificate]
@@ -209,17 +260,18 @@ resource "google_compute_target_https_proxy" "default" {
 
 # Load Balancer IP Address
 resource "google_compute_global_address" "default" {
-  count = var.use_load_balancer ? 1 : 0
+  count = local.enable_lb_stack ? 1 : 0
   name  = "${var.name}-address"
 }
 
 # Load Balancer Forwarding Rule
 resource "google_compute_global_forwarding_rule" "default" {
-  count      = var.use_load_balancer ? 1 : 0
-  name       = "${var.name}-lb"
-  target     = local.load_balancer_target
-  port_range = "443"
-  ip_address = local.ip_address
+  count                 = local.enable_lb_stack ? 1 : 0
+  name                  = "${var.name}-lb"
+  load_balancing_scheme = local.lb_scheme
+  target                = local.load_balancer_target
+  port_range            = "443"
+  ip_address            = local.ip_address
 }
 
 # Cloud Scheduler API
@@ -273,7 +325,9 @@ resource "google_project_iam_member" "sgtm_add_roles" {
     "roles/run.invoker",
     "roles/cloudfunctions.invoker",
     "roles/cloudfunctions.serviceAgent",
-    "roles/artifactregistry.reader"
+    "roles/artifactregistry.reader",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter"
   ])
   project = var.project_id
   role    = each.value
