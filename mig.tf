@@ -259,8 +259,11 @@ resource "google_cloud_scheduler_job" "mig_refresh" {
   http_target {
     http_method = "POST"
     uri         = "https://compute.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/instanceGroupManagers/${google_compute_region_instance_group_manager.mig[0].name}/applyUpdatesToInstances"
+    # minimalAction must be REPLACE: the API defaults to NONE, and with NONE an
+    # instance that already matches its template is left untouched (no re-pull).
     body = base64encode(jsonencode({
       allInstances                = true
+      minimalAction               = "REPLACE"
       mostDisruptiveAllowedAction = "REPLACE"
     }))
 

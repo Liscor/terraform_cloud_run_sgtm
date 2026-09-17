@@ -71,7 +71,7 @@ as VMs approach it). Set it to the **sustained per-VM knee of _your_ container o
 2. Ramp GA4 traffic with a load-test tool (e.g. k6 replaying a `page_view` hit), watch VM CPU (Cloud Monitoring) + LB p95 latency.
 3. Knee = the req/s where p95 starts rising / CPU nears its one-core cap. `max_rate_per_instance ≈ 0.8 × knee`.
 
-For the **light testbench** container: `e2-standard-2` → ~90; `c2d-highcpu-4` → ~220 (single container, so
+For a **light test** container (few tags): `e2-standard-2` → ~90; `c2d-highcpu-4` → ~220 (single container, so
 the 4-vCPU value is not 2× the 2-vCPU value — it's the same one core, just faster). Re-measure for prod.
 
 ## Sizing by request/event volume (pick-a-machine table)
@@ -93,7 +93,7 @@ for the per-VM figure to put in `max_rate_per_instance`:
 | `c3-highcpu-2` / `c4-highcpu-2`⁴ | ~80 req/s | ~250 req/s | ~2.8M → ~8.6M | ~€0.06-0.09/hr |
 
 ¹ Heavy = many tags (~35 req/s per core, measured on Cloud Run for a heavy production container).
-² Light = few tags, like the testbench (~110 req/s per e2 core, scaled by per-core speed).
+² Light = few tags (~110 req/s per e2 core, scaled by per-core speed).
 ³ events/day = sustained req/s × 86,400 (each request ≈ one GA4 event). **This is the *sustained* rate — size
 for your PEAK, not your daily average** (see below).
 ⁴ c3/c4 need a `pd-balanced`/Hyperdisk boot disk (see Gotchas); c3 absent in `europe-west3-c`.
