@@ -114,3 +114,100 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# MIG / VM backend (all default to "no change" so existing deploys are untouched)
+#
+# One regional, multi-zone Managed Instance Group runs the sGTM container behind
+# the load balancer as a lower-cost alternative to Cloud Run. Each VM packs
+# mig_containers_per_vm containers (one per serving core) behind an in-VM nginx.
+# ---------------------------------------------------------------------------
+
+variable "use_mig" {
+  description = "Master switch: deploy the regional GCE MIG/VM backend behind the load balancer. Requires the load balancer to be enabled."
+  type        = bool
+  default     = false
+}
+
+variable "mig_traffic_weight" {
+  description = "Percent of production traffic (0-100) routed to the MIG backend. The remainder goes to the Cloud Run fallback. 0 = all Cloud Run (test phase)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.mig_traffic_weight >= 0 && var.mig_traffic_weight <= 100
+    error_message = "mig_traffic_weight must be between 0 and 100."
+  }
+}
+
+variable "mig_machine_type" {
+  description = "Machine type for the MIG VMs. Dedicated-core highcpu recommended; (cores - 1) serve containers, 1 core is reserved for the OS + nginx."
+  type        = string
+  default     = "c2d-highcpu-4"
+}
+
+variable "mig_containers_per_vm" {
+  description = "sGTM containers per VM (one per serving core; one core reserved for the OS + nginx fan-out). Container ports start at 8081."
+  type        = number
+  default     = 3
+}
+
+variable "mig_min_replicas" {
+  description = "Autoscaler floor for the MIG (always-warm, multi-zone resilience baseline)."
+  type        = number
+  default     = 2
+}
+
+variable "mig_max_replicas" {
+  description = "Autoscaler ceiling for the MIG."
+  type        = number
+  default     = 4
+}
+
+variable "mig_prewarm_min_replicas" {
+  description = "Scheduled floor applied before the daily peak so warm VMs exist before the ramp (no scale-up lag)."
+  type        = number
+  default     = 3
+}
+
+variable "mig_prewarm_cron" {
+  description = "Cron (in mig_time_zone) marking the start of the pre-peak warm window."
+  type        = string
+  default     = "30 5 * * *"
+}
+
+variable "mig_prewarm_duration_sec" {
+  description = "How long the scheduled prewarm floor is held, from mig_prewarm_cron. 25200 = 7h."
+  type        = number
+  default     = 25200
+}
+
+variable "mig_time_zone" {
+  description = "IANA time zone for the MIG scaling schedule and optional refresh job."
+  type        = string
+  default     = "Europe/Berlin"
+}
+
+variable "max_rate_per_instance" {
+  description = "Requests/sec per instance that defines a backend as 'full' (LB RATE balancing + autoscale trigger). Pin this via a load test. Required when use_mig is true."
+  type        = number
+  default     = null
+}
+
+variable "mig_network" {
+  description = "VPC network for the MIG VMs."
+  type        = string
+  default     = "default"
+}
+
+variable "mig_subnetwork" {
+  description = "Subnetwork (in var.region) for the MIG VMs. Used to scope Cloud NAT."
+  type        = string
+  default     = "default"
+}
+
+variable "mig_scheduled_refresh" {
+  description = "If true, a Cloud Scheduler job periodically rolling-restarts the MIG so instances re-pull the :stable image. Enabling also grants the service account roles/compute.instanceAdmin.v1."
+  type        = bool
+  default     = false
+}

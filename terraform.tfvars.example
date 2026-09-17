@@ -1,0 +1,60 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored so your real container_config never gets committed.
+
+# Name prefix for the resources
+name = "sgtm"
+
+# GCP project ID where the assets are created
+project_id   = "your-gcp-project-id"
+project_name = "your-gcp-project-id"
+
+# Region to deploy into
+region = "europe-west3"
+
+# Container config string from the GTM web interface (Admin > Container Settings > CONTAINER_CONFIG)
+container_config = "PASTE_YOUR_BASE64_CONTAINER_CONFIG"
+
+# Error-notification alert recipients
+notification_users = [
+  {
+    name  = "Ops",
+    email = "ops@example.com"
+  }
+]
+
+# Suffix for the sGTM data bucket. Final name: <project_id>-<this_value>
+google_storage_bucket_name = "sgtm-data"
+
+# Custom domain mapped on the load balancer's managed SSL certificate
+domain_names = ["sgtm.example.com"]
+
+# Domain mapping requires the load balancer (managed SSL cert + global IP)
+use_load_balancer = true
+
+deletion_protection = false
+
+# ---------------------------------------------------------------------------
+# MIG / VM backend (optional; regional dense MIG behind the load balancer).
+# Requires use_load_balancer = true. Switches the LB to EXTERNAL_MANAGED.
+# ---------------------------------------------------------------------------
+use_mig            = false # true = serve production traffic from the MIG
+mig_traffic_weight = 0     # % of LB traffic to the MIG (ramp 0 -> 100)
+
+# Pin via a load test: req/s per VM the LB treats as "full" (spill + autoscale).
+# Required when use_mig = true.
+max_rate_per_instance = 300
+
+mig_machine_type      = "c2d-highcpu-4" # (cores-1) serve containers, 1 for OS+nginx
+mig_containers_per_vm = 3
+mig_min_replicas      = 2
+mig_max_replicas      = 4
+
+# Pre-warm before the daily peak (in mig_time_zone).
+mig_prewarm_min_replicas = 3
+mig_prewarm_cron         = "30 5 * * *"
+mig_prewarm_duration_sec = 25200
+mig_time_zone            = "Europe/Berlin"
+
+mig_network           = "default"
+mig_subnetwork        = "default"
+mig_scheduled_refresh = false

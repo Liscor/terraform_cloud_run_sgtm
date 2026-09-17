@@ -8,7 +8,89 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 - Docker Image Auto Updates - The SGTM Docker image will be updated automatically once per week (default)
 - Log Exculusion - Logs with the serverity default or notice will be excluded to reduce costs
 - Optional basic load balancer setup enabled via setting use_load_balancer variable to true.
+- Optional regional MIG / VM backend (`use_mig`) that serves production traffic from Compute Engine VMs behind the load balancer, with Cloud Run kept as a weighted fallback. See [MIG / VM backend](#mig--vm-backend-cost-optimization).
 - The Load balancer contains the Geolocation headers described [here](https://developers.google.com/tag-platform/tag-manager/server-side/enable-region-specific-settings) and the additonal ones neccesary for sending geolocation data to GA4 described [here](https://www.simoahava.com/gtm-tips/utilize-app-engine-headers-server-side-tagging/) All possible headers are listed [here](https://cloud.google.com/load-balancing/docs/https/custom-headers)
+
+## MIG / VM backend (cost optimization)
+
+Optionally serve production traffic from a regional GCE Managed Instance Group of
+VMs running the SGTM container, instead of Cloud Run, to cut compute cost. Cloud
+Run is kept as a weight-controlled fallback.
+
+- Enable with `use_mig = true` (requires `use_load_balancer = true`).
+- Traffic is split via `mig_traffic_weight` (0-100). Start at `0` (all Cloud Run),
+  load-test one instance to pin `max_rate_per_instance`, then ramp the weight.
+  Drop it back to `0` for instant fail-back during MIG maintenance.
+- **Dense packing:** each VM runs `mig_containers_per_vm` SGTM containers (one per
+  serving core; one core is reserved for the OS and an in-VM nginx that fans out
+  to the containers). Fewer, bigger VMs cost less per request than many small ones.
+- **Regional & multi-zone:** the MIG spreads VMs across all zones in `region`, so a
+  single-zone outage does not take the tier down (autohealing recreates elsewhere).
+- **Autoscaling:** scales on whichever is higher of request rate (vs
+  `max_rate_per_instance`) and CPU, between `mig_min_replicas` and
+  `mig_max_replicas`. A daily schedule pre-warms `mig_prewarm_min_replicas` VMs
+  before the morning peak (`mig_prewarm_cron` / `mig_prewarm_duration_sec`, in
+  `mig_time_zone`) so the ramp never waits on VM boot time.
+- Self-healing: each VM runs the containers under systemd plus a per-container
+  watchdog that restarts one if it reports unhealthy; MIG autohealing recreates a
+  VM that stays unhealthy.
+- **Egress:** VMs have no external IP. Outbound traffic (image pull, tag vendor
+  calls) goes through a Cloud NAT created by the module in `mig_network` /
+  `mig_subnetwork` (default VPC by default).
+- **Updates:** the instance template pins the latest `cos-stable` image at plan
+  time. When Google publishes a new COS image, the next `terraform apply` rolls
+  the MIG (zero `max_unavailable`, surge of 3) so expect VM replacements on apply.
+
+See [docs/reference/sgtm-machine-type-sizing.md](docs/reference/sgtm-machine-type-sizing.md)
+for choosing a machine type and pinning `max_rate_per_instance` from a load test.
+
+### Rollout recipe
+
+1. Deploy with `use_load_balancer = true` and `use_mig = true`, `mig_traffic_weight = 0`.
+   The LB is (re)built as `EXTERNAL_MANAGED` and the MIG comes up with zero traffic.
+2. Load-test a single VM and set `max_rate_per_instance` (see the sizing guide).
+3. Ramp `mig_traffic_weight` (e.g. 5 → 20 → 50 → 100), applying between steps and
+   watching LB p95 latency and 5xx rate. Cloud Run absorbs the remainder.
+4. Once at 100, lower `min_instance_count` on Cloud Run if you want it cold; it
+   still serves `/gtm.js` and `/gtag/*` and the preview server.
+
+### MIG variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `use_mig` | `false` | Master switch. Requires `use_load_balancer = true`. |
+| `mig_traffic_weight` | `0` | Percent of production traffic sent to the MIG (rest to Cloud Run). |
+| `max_rate_per_instance` | `null` | Requests/s per VM the LB treats as full; drives spill and autoscaling. Required when `use_mig` is on. |
+| `mig_machine_type` | `c2d-highcpu-4` | VM type. `(cores - 1)` cores serve containers, 1 core for OS + nginx. |
+| `mig_containers_per_vm` | `3` | SGTM containers per VM (ports 8081+). |
+| `mig_min_replicas` / `mig_max_replicas` | `2` / `4` | Autoscaler floor and ceiling. |
+| `mig_prewarm_min_replicas` | `3` | Floor held during the daily prewarm window. |
+| `mig_prewarm_cron` / `mig_prewarm_duration_sec` | `30 5 * * *` / `25200` | Start and length (7h) of the prewarm window, in `mig_time_zone`. |
+| `mig_time_zone` | `Europe/Berlin` | IANA zone for the schedule and the optional refresh job. |
+| `mig_network` / `mig_subnetwork` | `default` / `default` | VPC and subnet (in `region`) for the VMs and Cloud NAT. |
+| `mig_scheduled_refresh` | `false` | Cloud Scheduler job that rolling-replaces the MIG on `update_interval` to re-pull `:stable`. |
+
+### Committed Use Discounts (CUD)
+
+This module does **not** purchase a CUD. Resource-based CUDs apply automatically
+to matching running vCPUs in the region/family. Size `mig_min_replicas` and the
+machine type to match the vCPUs you commit to, and buy the commitment separately
+in the billing console.
+
+### Load balancer scheme migration
+
+Enabling `use_mig` builds the load balancer as the global external Application
+Load Balancer (`EXTERNAL_MANAGED`). On an existing classic-LB (`EXTERNAL`)
+deployment this **recreates** the LB resources: the reserved IP is preserved, but
+the managed SSL certificate re-provisions (allow ~15-60 min before HTTPS is
+healthy again).
+
+### Optional scheduled image refresh
+
+Setting `mig_scheduled_refresh = true` adds a Cloud Scheduler job that rolls the
+MIG on `update_interval` so instances re-pull the `:stable` image. This also
+grants the SGTM service account `roles/compute.instanceAdmin.v1` (needed to
+trigger the rolling update) — a broad role, enabled only when you opt in.
 
 ## Getting Started
 
@@ -16,14 +98,14 @@ This Terraform script deploys the serverside Google Tag Manager on Cloud Run wit
 
 1. Clone this repository and make sure you have installed [Terraform](https://developer.hashicorp.com/terraform/tutorials/gcp-get-started/install-cli).
 2. Authenticate with Application Default Credentials - Setup [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc#local-user-cred).
-3. Change the variables inside terraform.tfvars.example to suit your needs and rename the file to terraform.tfvars. Make sure you have created the SGTM Container already to retrieve the container config.
+3. Copy `terraform.tfvars.example` to `terraform.tfvars` and change the variables to suit your needs (`terraform.tfvars` is gitignored so your container config is never committed). Make sure you have created the SGTM Container already to retrieve the container config.
 4. Run `terraform init` to initialize the repository and `terraform apply` the infrastructure will be built on GCP
 
 ### Run in Google Cloud Shell
-1. Use This link to the [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars)
-   1. If you want the Cloud Shell Instance to not be persistant use this link: [non-persistant Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars&ephemeral=true).
+1. Use This link to the [Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars.example)
+   1. If you want the Cloud Shell Instance to not be persistant use this link: [non-persistant Cloud Shell](https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/Liscor/terraform_cloud_run_sgtm&page=editor&open_in_editor=terraform.tfvars.example&ephemeral=true).
 2. Trust the Repo and Confirm when prompted.
-3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars File.
+3. Wait till Cloud Shell has completed loading. You should see the terraform.tfvars.example File. Copy it to terraform.tfvars (`cp terraform.tfvars.example terraform.tfvars`).
 4. Run `bash run_this.sh` 
    1. Click Authorize when asked to Authorize Cloud Shell.
    2. Hit `1` to initialize with new settings

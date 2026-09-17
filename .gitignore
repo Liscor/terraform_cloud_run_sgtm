@@ -9,3 +9,5 @@ terraform.tfstate.backup
 .terraform.tfstate.lock.info
 cf_function/index.js
 cf_function/package.json
+scratch.tfvars
+terraform.tfvars
