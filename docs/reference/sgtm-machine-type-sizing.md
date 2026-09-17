@@ -86,11 +86,11 @@ for the per-VM figure to put in `max_rate_per_instance`:
 
 | Machine (per serving core) | Heavy container¹ | Light container² | ≈ events/day per core³ (heavy → light) | Cost |
 |---|---|---|---|---|
-| `e2-micro` (dev/idle only ⚠︎) | ~9 req/s⁵ | ~25-30 req/s⁵ | ~0.3M → ~1.0M | ~€0.008/hr |
-| `e2-small` (dev/idle only ⚠︎) | ~18 req/s⁵ | ~55 req/s⁵ | ~0.6M → ~2.0M | ~€0.017/hr |
-| `e2-standard-2` / `e2-highcpu-2` (avoid) | ~28 req/s | ~90 req/s | ~1.0M → ~3.1M | ~€0.05-0.07/hr |
-| **`c2d-highcpu-2`** (recommended) | **~65 req/s** | **~200 req/s** | **~2.2M → ~6.9M** | ~€0.055/hr |
-| `c3-highcpu-2` / `c4-highcpu-2`⁴ | ~80 req/s | ~250 req/s | ~2.8M → ~8.6M | ~€0.06-0.09/hr |
+| `e2-micro` (dev/idle only ⚠︎) | ~9 req/s⁵ | ~25-30 req/s⁵ | ~0.8M → ~2.4M | ~€0.008/hr |
+| `e2-small` (dev/idle only ⚠︎) | ~18 req/s⁵ | ~55 req/s⁵ | ~1.6M → ~4.8M | ~€0.017/hr |
+| `e2-standard-2` / `e2-highcpu-2` (avoid) | ~28 req/s | ~90 req/s | ~2.4M → ~7.8M | ~€0.05-0.07/hr |
+| **`c2d-highcpu-2`** (recommended) | **~65 req/s** | **~200 req/s** | **~5.6M → ~17.3M** | ~€0.055/hr |
+| `c3-highcpu-2` / `c4-highcpu-2`⁴ | ~80 req/s | ~250 req/s | ~6.9M → ~21.6M | ~€0.06-0.09/hr |
 
 ¹ Heavy = many tags (~35 req/s per core, measured on Cloud Run for a heavy production container).
 ² Light = few tags (~110 req/s per e2 core, scaled by per-core speed).
